@@ -686,15 +686,11 @@ M.MapMLLayerControl = L.Control.Layers.extend({
 	},
 	onAdd: function () {
 		this._initLayout();
+                this._map.on('moveend', this._onMapMoveEnd, this);
 		this._update();
-
+                
 		return this._container;
 	},
-        getEvents: function () {
-            return { 
-              moveend: this._onMapMoveEnd 
-            };
-        },
 	onRemove: function () {
 		this._map
                     .off('moveend', this._onMapMoveEnd, this);
