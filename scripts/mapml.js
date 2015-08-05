@@ -25,16 +25,10 @@ M.MapMLLayer = L.Layer.extend({
               opacity: this.options.opacity,
               onEachFeature: function(feature, layer) {
                 var type;
-                if (layer instanceof L.MultiPolygon) {
-                  type = "MultiPolygon";
-                } else if (layer instanceof L.MultiPolyline) {
-                  type = "MultiLinestring";
-                } else if (layer instanceof L.Polygon) {
+                if (layer instanceof L.Polygon) {
                   type = "Polygon";
                 } else if (layer instanceof L.Polyline) {
                   type = "LineString";
-                } else if (layer instanceof L.FeatureGroup) {
-                  type = "GeometryCollection";
                 } else if (layer instanceof L.Marker) {
                   type = "Point";
                 } else {
@@ -64,7 +58,7 @@ M.MapMLLayer = L.Layer.extend({
         /* TODO establish the minZoom, maxZoom for the _tileLayer based on
          * info received from mapml server. */
         if (this._extent)
-            this._update();
+            this._onMoveEnd();
     },
     addTo: function (map) {
         map.addLayer(this);
@@ -73,7 +67,7 @@ M.MapMLLayer = L.Layer.extend({
     getEvents: function () {
       return {
         zoom: this._reset, 
-        moveend: this._update};
+        moveend: this._onMoveEnd};
     },
     onRemove: function (map) {
         this._mapml.clearLayers();
@@ -206,7 +200,7 @@ M.MapMLLayer = L.Layer.extend({
                   if (layer._el.getElementsByTagName('tile').length > 0) {
                       // would prefer to fire an event here, not quite sure how
                       // to do that...
-                      layer._tileLayer._update();
+                      layer._tileLayer._onMoveEnd();
                   }
               }
             }
@@ -221,7 +215,7 @@ M.MapMLLayer = L.Layer.extend({
             return relLink;
         };
     },
-    _update: function () {
+    _onMoveEnd: function () {
         var url =  this._calculateUrl();
         if (url) {
           this.href = url;
@@ -320,22 +314,25 @@ M.mapMLLayer = function (url, options) {
 	return new M.MapMLLayer(url, options);
 };
 M.MapMLTileLayer = L.TileLayer.extend({
-	onAdd: function (map) {
-		this._map = map;
-		this._animated = map._zoomAnimated;
-
-		// create a container div for tiles
-		this._initContainer();
-
-                L.TileLayer.prototype.onAdd.call(this, map);
-
-	},
         getEvents: function () {
-          return {
+          
+          var events = {
             zoom: this._resetAll, 
-            moveend: this._update
+            moveend: this._onMoveEnd
           };
+          
+          if (this._zoomAnimated) {
+              events.zoomanim = this._animateZoom;
+          };
+          return events;
+
         },
+	_onMoveEnd: function () {
+		if (!this._map) { return; }
+
+		this._update();
+		this._pruneTiles();
+	},
         _update: function() {
             if (!this._map) { return; }
             var map = this._map,
@@ -384,22 +381,9 @@ M.MapMLTileLayer = L.TileLayer.extend({
                 coords.z = this._map.getZoom();
                 var key = this._tileCoordsToKey(coords);
                 
-
-                /* if this._tiles[key] exists, create the img element as a child
-                 * of it.
-                 * */
 		var tile = this.createTile(tileToLoad);
-
 		this._initTile(tile);
 
-		// if createTile is defined with a second argument ("done" callback),
-		// we know that tile is async and will be ready later; otherwise
-//		if (this.createTile.length < 2) {
-			// mark tile as ready, but delay one frame for opacity animation to happen
-//			setTimeout(L.bind(this._tileReady, this, coords, null, tile), 0);
-//		}
-
-                
                 var tileContainer;
                 if (this._tiles[key]) {
                   tileContainer = this._tiles[key].el;
