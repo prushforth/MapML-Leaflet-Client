@@ -8,8 +8,7 @@ window.M = M;
     M.mime = "text/mapml";
   }());
   
-M.MapMLLayer = L.Class.extend({
-    includes: L.Mixin.Events,
+M.MapMLLayer = L.Layer.extend({
     options: {
         maxNext: 10,
         projection: "WGS84"
@@ -26,16 +25,10 @@ M.MapMLLayer = L.Class.extend({
               opacity: this.options.opacity,
               onEachFeature: function(feature, layer) {
                 var type;
-                if (layer instanceof L.MultiPolygon) {
-                  type = "MultiPolygon";
-                } else if (layer instanceof L.MultiPolyline) {
-                  type = "MultiLinestring";
-                } else if (layer instanceof L.Polygon) {
+                if (layer instanceof L.Polygon) {
                   type = "Polygon";
                 } else if (layer instanceof L.Polyline) {
                   type = "LineString";
-                } else if (layer instanceof L.FeatureGroup) {
-                  type = "GeometryCollection";
                 } else if (layer instanceof L.Marker) {
                   type = "Point";
                 } else {
@@ -60,25 +53,26 @@ M.MapMLLayer = L.Class.extend({
         }
         map.addLayer(this._tileLayer);
         this._tileLayer._container.appendChild(this._el);
-        map.on('viewreset', this._reset, this);
-        map.on('moveend', this._update, this);
         // if the extent has been initialized and received, update the map,
         // otherwise wait for 'moveend' to be triggered by the callback
-        /* TODO establish the minZoom, maxZoom, attribution for the _tileLayer based on
+        /* TODO establish the minZoom, maxZoom for the _tileLayer based on
          * info received from mapml server. */
         if (this._extent)
-            this._update();
+            this._onMoveEnd();
     },
     addTo: function (map) {
         map.addLayer(this);
         return this;
     },
+    getEvents: function () {
+      return {
+        zoom: this._reset, 
+        moveend: this._onMoveEnd};
+    },
     onRemove: function (map) {
         this._mapml.clearLayers();
         map.removeLayer(this._mapml);
         map.removeLayer(this._tileLayer);
-        map.off('viewreset', this._reset, this);
-        map.off('moveend', this._update, this);
     },
     getZoomBounds: function () {
         if (!this._extent) return;
@@ -157,7 +151,7 @@ M.MapMLLayer = L.Class.extend({
         var requestCounter = 0;
         var xhr = new XMLHttpRequest();
         // add a listener to terminate pulling the feed 
-        this._map.on('movestart', function() {
+        this._map.once('movestart', function() {
           xhr.abort();
         });
         _pull(url, _processResponse);
@@ -206,7 +200,7 @@ M.MapMLLayer = L.Class.extend({
                   if (layer._el.getElementsByTagName('tile').length > 0) {
                       // would prefer to fire an event here, not quite sure how
                       // to do that...
-                      layer._tileLayer._update();
+                      layer._tileLayer._onMoveEnd();
                   }
               }
             }
@@ -221,12 +215,12 @@ M.MapMLLayer = L.Class.extend({
             return relLink;
         };
     },
-    _update: function () {
+    _onMoveEnd: function () {
         var url =  this._calculateUrl();
         if (url) {
           this.href = url;
           this._mapml.clearLayers();
-//          this._initEl();
+          this._initEl();
           this._getMapML(url);
         }
     },
@@ -320,60 +314,45 @@ M.mapMLLayer = function (url, options) {
 	return new M.MapMLLayer(url, options);
 };
 M.MapMLTileLayer = L.TileLayer.extend({
-	onAdd: function (map) {
-		this._map = map;
-		this._animated = map._zoomAnimated;
+        getEvents: function () {
+          
+          var events = {
+            zoom: this._resetAll, 
+            moveend: this._onMoveEnd
+          };
+          
+          if (this._zoomAnimated) {
+              events.zoomanim = this._animateZoom;
+          };
+          return events;
 
-		// create a container div for tiles
-		this._initContainer();
+        },
+	_onMoveEnd: function () {
+		if (!this._map) { return; }
 
-		map.on({
-			'viewreset': this._reset,
-			'moveend': this._update
-		}, this);
-		if (this._animated) {
-			map.on({
-				'zoomanim': this._animateZoom,
-				'zoomend': this._endZoomAnim
-			}, this);
-		}
-                // not sure what this does... leave it.
-		if (!this.options.updateWhenIdle) {
-			this._limitedUpdate = L.Util.limitExecByInterval(this._update, 150, this);
-			map.on('move', this._limitedUpdate, this);
-		}
-                L.TileLayer.prototype.onAdd.call(this, map);
-
+		this._update();
+		this._pruneTiles();
 	},
         _update: function() {
             if (!this._map) { return; }
+            var map = this._map,
+                zoom = map.getZoom();
             if (zoom > this.options.maxZoom || zoom < this.options.minZoom) {
                 return;
             }
-            var map = this._map,
-                bounds = map.getPixelBounds(),
-                zoom = map.getZoom(),
-                tileSize = this._getTileSize();
-            var tileBounds = L.bounds(
-                bounds.min.divideBy(tileSize)._floor(),
-                bounds.max.divideBy(tileSize)._floor());
-            // this modified version uses tile info previously loaded by mapml,
-            // does not generate tile references itself.
+            /* this layer is 'owned' by the MapMLLayer, which should have 
+             * retrieved the mapml response by the time this method is called,
+             * storing essential bits of it in the this._el element
+             */
             var tiles = this._el.getElementsByTagName('tile');
-              this._addTiles(tiles);
-            if (this.options.unloadInvisibleTiles || this.options.reuseTiles) {
-                    this._removeOtherTiles(tileBounds);
-            }
+            this._addTiles(tiles);
         },
-        /* the original in leaflet is called '_addTilesFromCenterOut, which has
-         * a bounds argument.  In this case, we let the server determine the order
-         * in which the tiles should be loaded. */
 	_addTiles: function (tiles) {
 		var queue = [];
 		var point;
                 for (var i=0;i<tiles.length;i++) {
                     point = new L.Point(tiles[i].getAttribute('x'), tiles[i].getAttribute('y'));
-                    if (this._tileShouldBeLoaded(point)) {
+                    if (this._isValidTile(point)) {
                         queue.push(tiles[i]);
                     }
                 }
@@ -385,49 +364,69 @@ M.MapMLTileLayer = L.TileLayer.extend({
 		var fragment = document.createDocumentFragment();
 
 		// if its the first batch of tiles to load
-		if (!this._tilesToLoad) {
-			this.fire('loading');
+		if (!this._loading) {
+                    this._loading = true;
+                    this.fire('loading');
 		}
-
-		this._tilesToLoad += tilesToLoad;
 
 		for (i = 0; i < tilesToLoad; i++) {
 			this._addTile(queue[i], fragment);
 		}
 
-		this._tileContainer.appendChild(fragment);
+		this._level.el.appendChild(fragment);
 	},
 	_addTile: function (tileToLoad, container) {
                 var tilePoint = new L.Point(tileToLoad.getAttribute('x'), tileToLoad.getAttribute('y'));
-		var tilePos = this._getTilePos(tilePoint);
+		var coords = this._getTilePos(tilePoint);
+                coords.z = this._map.getZoom();
+                var key = this._tileCoordsToKey(coords);
+                
+		var tile = this.createTile(tileToLoad);
+		this._initTile(tile);
 
-		// get unused tile - or create a new tile
-		var tile = this._getTile();
+                var tileContainer;
+                if (this._tiles[key]) {
+                  tileContainer = this._tiles[key].el;
+                } else {
+                  tileContainer = document.createElement('div');
+                }
+                tileContainer.appendChild(tile);
+		// we prefer top/left over translate3d so that we don't create a HW-accelerated layer from each tile
+		// which is slow, and it also fixes gaps between tiles in Safari
+		L.DomUtil.setPosition(tileContainer, coords);
 
-		L.DomUtil.setPosition(tile, tilePos, L.Browser.chrome);
+		// save tile in cache
+		this._tiles[key] = {
+			el: tileContainer,
+			coords: coords,
+			current: true
+		};
 
-		this._tiles[tilePoint.x + ':' + tilePoint.y] = tile;
-                var url = tileToLoad.getAttribute('src');
-		this._loadTile(tile, url);
-
-		if (tile.parentNode !== this._tileContainer) {
-			container.appendChild(tile);
-		}
-	},
-	_loadTile: function (tile, url) {
-		tile._layer  = this;
-		tile.onload  = this._tileOnLoad;
-		tile.onerror = this._tileOnError;
-
-		//this._adjustTilePoint(tilePoint);
-		tile.src     = url;
-
+		container.appendChild(tileContainer);
 		this.fire('tileloadstart', {
 			tile: tile,
-			url: tile.src
+			coords: coords
 		});
+	},
+	createTile: function (tileElement) {
+		var tile = document.createElement('img');
+
+		if (this.options.crossOrigin) {
+			tile.crossOrigin = '';
+		}
+
+		/*
+		 Alt tag is set to empty string to keep screen readers from reading URL and for compliance reasons
+		 http://www.w3.org/TR/WCAG20-TECHS/H67
+		*/
+		tile.alt = '';
+
+		tile.src = tileElement.getAttribute('src');
+                L.DomUtil.addClass(tile, 'leaflet-tile-loaded');
+
+		return tile;
 	}
-  
+
 });
 
 M.mapMLTileLayer = function (url, options) {
@@ -671,7 +670,7 @@ L.Path.include({
 });
 
 
-/* does not support 'base' layers.  Adds _enable/_disable */
+/* removes 'base' layers.   */
 M.MapMLLayerControl = L.Control.Layers.extend({
 	initialize: function (overlays, options) {
 		L.setOptions(this, options);
@@ -685,28 +684,15 @@ M.MapMLLayerControl = L.Control.Layers.extend({
 			this._addLayer(overlays[i], i, true);
 		}
 	},
-	_enable: function(layer) {
-          
-        },
-	_disable: function(layer) {
-          
-        },
-	onAdd: function (map) {
+	onAdd: function () {
 		this._initLayout();
+                this._map.on('moveend', this._onMapMoveEnd, this);
 		this._update();
-
-		map
-		    .on('layeradd', this._onLayerChange, this)
-		    .on('layerremove', this._onLayerChange, this)
-                    .on('moveend', this._onMapMoveEnd, this);
-
+                
 		return this._container;
 	},
-
-	onRemove: function (map) {
-		map
-		    .off('layeradd', this._onLayerChange, this)
-		    .off('layerremove', this._onLayerChange, this)
+	onRemove: function () {
+		this._map
                     .off('moveend', this._onMapMoveEnd, this);
 	},
         _onMapMoveEnd: function(e) {
