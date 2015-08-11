@@ -566,8 +566,9 @@ L.extend(M.MapML, {
                          * the <script> element for Leaflet, but that is not available
                          * inside a Web Component / Custom Element */
                         var pathToImages = "http://cdn.leafletjs.com/leaflet-0.7.3/images/";
+                        var opacity = vectorOptions.opacity ? vectorOptions.opacity : null;
 			return pointToLayer ? pointToLayer(mapml, latlng) : 
-                                new L.Marker(latlng, {icon: L.icon({
+                                new L.Marker(latlng, {opacity: opacity, icon: L.icon({
                                     iconUrl: pathToImages+"marker-icon.png",
                                     iconRetinaUrl: pathToImages+"marker-icon-2x.png",
                                     shadowUrl: pathToImages+"marker-shadow.png",
@@ -678,13 +679,12 @@ L.extend(M.MapML, {
 M.mapMl = function (mapml, options) {
 	return new M.MapML(mapml, options);
 };
-// this overrides the private method of Leaflet Path to set the opacity directly
-// on the svg path element in the style attribute. Quite a hack, I guess,
-// but I didn't want to own the whole class, as it is quite fundamental to stuff
-L.Path.include({
-	_updateStyle: function () {
-                if (this.options.opacity) {
-                  this._path.setAttribute('style', 'opacity: ' +this.options.opacity);
+L.SVG.include({
+	_updateStyle: function (layer) {
+		var path = layer._path,
+			options = layer.options;
+                if (options.opacity) {
+                  path.setAttribute('style', 'opacity: ' + options.opacity);
                 }
 	}
 });
