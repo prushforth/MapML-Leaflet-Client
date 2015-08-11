@@ -314,19 +314,19 @@ M.mapMLLayer = function (url, options) {
 	return new M.MapMLLayer(url, options);
 };
 M.MapMLTileLayer = L.TileLayer.extend({
-        getEvents: function () {
-          
-          var events = {
-            zoom: this._resetAll, 
-            moveend: this._onMoveEnd
-          };
-          
-          if (this._zoomAnimated) {
-              events.zoomanim = this._animateZoom;
-          };
-          return events;
+	getEvents: function () {
+		var events = {
+			viewreset: this._resetAll,
+			zoom: this._resetView,
+			moveend: this._onMoveEnd
+		};
+                // doing updates on move causes too much jank...
+		if (this._zoomAnimated) {
+			events.zoomanim = this._animateZoom;
+		}
 
-        },
+		return events;
+	},
 	_onMoveEnd: function () {
 		if (!this._map) { return; }
 
@@ -383,6 +383,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
                 
 		var tile = this.createTile(tileToLoad);
 		this._initTile(tile);
+                setTimeout(L.bind(this._tileReady, this, coords, null, tile), 0);
 
                 var tileContainer;
                 if (this._tiles[key]) {
@@ -391,9 +392,10 @@ M.MapMLTileLayer = L.TileLayer.extend({
                   tileContainer = document.createElement('div');
                 }
                 tileContainer.appendChild(tile);
+                // per L.TileLayer comment:
 		// we prefer top/left over translate3d so that we don't create a HW-accelerated layer from each tile
 		// which is slow, and it also fixes gaps between tiles in Safari
-		L.DomUtil.setPosition(tileContainer, coords);
+                L.DomUtil.setPosition(tileContainer, coords);
 
 		// save tile in cache
 		this._tiles[key] = {
@@ -425,8 +427,25 @@ M.MapMLTileLayer = L.TileLayer.extend({
                 L.DomUtil.addClass(tile, 'leaflet-tile-loaded');
 
 		return tile;
-	}
+	},
+        // stops loading all tiles in the background layer, overrides method
+        // from L.TileLayer because of different HTML model img -> div/img[]
+	_abortLoading: function () {
+		var i, tile;
+		for (i in this._tiles) {
+			tileDiv = this._tiles[i].el;
+                        var images = tileDiv.getElementsByTagName('img');
+                        for (var i = 0; tile = images[i]; i++) {
+                            tile.onload = L.Util.falseFn;
+                            tile.onerror = L.Util.falseFn;
 
+                            if (!tile.complete) {
+                                    tile.src = L.Util.emptyImageUrl;
+                                    L.DomUtil.remove(tile);
+                            }
+                        }
+		}
+	}
 });
 
 M.mapMLTileLayer = function (url, options) {
