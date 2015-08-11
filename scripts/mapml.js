@@ -435,7 +435,8 @@ M.MapMLTileLayer = L.TileLayer.extend({
 		for (i in this._tiles) {
 			tileDiv = this._tiles[i].el;
                         var images = tileDiv.getElementsByTagName('img');
-                        for (var i = 0; tile = images[i]; i++) {
+                        for (var i = 0; i< images.length; i++) {
+                            tile = images[i];
                             tile.onload = L.Util.falseFn;
                             tile.onerror = L.Util.falseFn;
 
