@@ -686,6 +686,7 @@ L.SVG.include({
                 if (options.opacity) {
                   path.setAttribute('style', 'opacity: ' + options.opacity);
                 }
+		path.setAttribute('pointer-events', options.pointerEvents || (options.interactive ? 'visiblePainted' : 'none'));
 	}
 });
 
