@@ -314,19 +314,19 @@ M.mapMLLayer = function (url, options) {
 	return new M.MapMLLayer(url, options);
 };
 M.MapMLTileLayer = L.TileLayer.extend({
-        getEvents: function () {
-          
-          var events = {
-            zoom: this._resetAll, 
-            moveend: this._onMoveEnd
-          };
-          
-          if (this._zoomAnimated) {
-              events.zoomanim = this._animateZoom;
-          };
-          return events;
+	getEvents: function () {
+		var events = {
+			viewreset: this._resetAll,
+			zoom: this._resetView,
+			moveend: this._onMoveEnd
+		};
+                // doing updates on move causes too much jank...
+		if (this._zoomAnimated) {
+			events.zoomanim = this._animateZoom;
+		}
 
-        },
+		return events;
+	},
 	_onMoveEnd: function () {
 		if (!this._map) { return; }
 
@@ -383,6 +383,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
                 
 		var tile = this.createTile(tileToLoad);
 		this._initTile(tile);
+                setTimeout(L.bind(this._tileReady, this, coords, null, tile), 0);
 
                 var tileContainer;
                 if (this._tiles[key]) {
@@ -391,9 +392,10 @@ M.MapMLTileLayer = L.TileLayer.extend({
                   tileContainer = document.createElement('div');
                 }
                 tileContainer.appendChild(tile);
+                // per L.TileLayer comment:
 		// we prefer top/left over translate3d so that we don't create a HW-accelerated layer from each tile
 		// which is slow, and it also fixes gaps between tiles in Safari
-		L.DomUtil.setPosition(tileContainer, coords);
+                L.DomUtil.setPosition(tileContainer, coords);
 
 		// save tile in cache
 		this._tiles[key] = {
@@ -425,8 +427,26 @@ M.MapMLTileLayer = L.TileLayer.extend({
                 L.DomUtil.addClass(tile, 'leaflet-tile-loaded');
 
 		return tile;
-	}
+	},
+        // stops loading all tiles in the background layer, overrides method
+        // from L.TileLayer because of different HTML model img -> div/img[]
+	_abortLoading: function () {
+		var i, tile;
+		for (i in this._tiles) {
+			tileDiv = this._tiles[i].el;
+                        var images = tileDiv.getElementsByTagName('img');
+                        for (var i = 0; i< images.length; i++) {
+                            tile = images[i];
+                            tile.onload = L.Util.falseFn;
+                            tile.onerror = L.Util.falseFn;
 
+                            if (!tile.complete) {
+                                    tile.src = L.Util.emptyImageUrl;
+                                    L.DomUtil.remove(tile);
+                            }
+                        }
+		}
+	}
 });
 
 M.mapMLTileLayer = function (url, options) {
@@ -546,8 +566,9 @@ L.extend(M.MapML, {
                          * the <script> element for Leaflet, but that is not available
                          * inside a Web Component / Custom Element */
                         var pathToImages = "http://cdn.leafletjs.com/leaflet-0.7.3/images/";
+                        var opacity = vectorOptions.opacity ? vectorOptions.opacity : null;
 			return pointToLayer ? pointToLayer(mapml, latlng) : 
-                                new L.Marker(latlng, {icon: L.icon({
+                                new L.Marker(latlng, {opacity: opacity, icon: L.icon({
                                     iconUrl: pathToImages+"marker-icon.png",
                                     iconRetinaUrl: pathToImages+"marker-icon-2x.png",
                                     shadowUrl: pathToImages+"marker-shadow.png",
@@ -658,14 +679,14 @@ L.extend(M.MapML, {
 M.mapMl = function (mapml, options) {
 	return new M.MapML(mapml, options);
 };
-// this overrides the private method of Leaflet Path to set the opacity directly
-// on the svg path element in the style attribute. Quite a hack, I guess,
-// but I didn't want to own the whole class, as it is quite fundamental to stuff
-L.Path.include({
-	_updateStyle: function () {
-                if (this.options.opacity) {
-                  this._path.setAttribute('style', 'opacity: ' +this.options.opacity);
+L.SVG.include({
+	_updateStyle: function (layer) {
+		var path = layer._path,
+			options = layer.options;
+                if (options.opacity) {
+                  path.setAttribute('style', 'opacity: ' + options.opacity);
                 }
+		path.setAttribute('pointer-events', options.pointerEvents || (options.interactive ? 'visiblePainted' : 'none'));
 	}
 });
 
