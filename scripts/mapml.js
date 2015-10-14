@@ -6,7 +6,33 @@ window.M = M;
 
 (function () {
     M.mime = "text/mapml";
-  }());
+    M.CBMTILE = new L.Proj.CRS('EPSG:3978',
+  '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=49 +lon_0=-95 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs',
+  {
+    resolutions: [
+      38364.660062653464, 
+      22489.62831258996, 
+      13229.193125052918, 
+      7937.5158750317505, 
+      4630.2175937685215, 
+      2645.8386250105837,
+      1587.5031750063501,
+      926.0435187537042, 
+      529.1677250021168, 
+      317.50063500127004, 
+      185.20870375074085, 
+      111.12522225044451, 
+      66.1459656252646, 
+      38.36466006265346, 
+      22.48962831258996,
+      13.229193125052918,
+      7.9375158750317505, 
+      4.6302175937685215
+    ],
+    origin: [-34655800, 39310000]
+  });
+    M.OSMTILE = L.CRS.EPSG3857;
+}());
   
 M.MapMLLayer = L.Layer.extend({
     options: {
@@ -83,7 +109,9 @@ M.MapMLLayer = L.Layer.extend({
         bounds.max = Math.max(v1,v2);
         return bounds;
     },
-    getBounds: function() {
+    // TODO modify this method to retrieve the (projected, scaled) bounds for 
+    // the zoom level, or the bounds for the minimum zoom level if not specified
+    getPixelBounds: function(zoom) {
         if (!this._extent) return;
         var xmin,ymin,xmax,ymax,v1,v2;
         v1 = this._extent.querySelector('[type=xmin]').getAttribute('min');
@@ -98,7 +126,7 @@ M.MapMLLayer = L.Layer.extend({
         v1 = this._extent.querySelector('[type=ymin]').getAttribute('max');
         v2 = this._extent.querySelector('[type=ymax]').getAttribute('max');
         ymax = Math.max(v1,v2);
-        return new L.LatLngBounds(new L.LatLng(ymin, xmin), new L.LatLng(ymax,xmax));
+        return L.bounds(L.point(xmin,ymin), L.point(xmin,ymin));
     },
     getAttribution: function () {
         return this.options.attribution;
@@ -129,6 +157,9 @@ M.MapMLLayer = L.Layer.extend({
             xhr.overrideMimeType("text/xml");
             xhr.send();
         };
+
+        // TODO modify this method to create an array of bounds, one per zoom
+        // level indicated by the server in its first response
         function _processResponse() {
             if (this.responseXML) {
                 var xml = this.responseXML;
@@ -251,7 +282,8 @@ M.MapMLLayer = L.Layer.extend({
         if (!extent) return this._href;
         var action = extent.getAttribute("action");
         if (!action) return null;
-        var b = this._map.getBounds();
+        // gets the extent of the map at the current zoom level in Tiled CRS coordinates
+        var b = this._map.getPixelBounds();
         var xmin = extent.querySelectorAll("input[type=xmin]")[0];
         var ymin = extent.querySelectorAll("input[type=ymin]")[0];
         var xmax = extent.querySelectorAll("input[type=xmax]")[0];
@@ -271,7 +303,9 @@ M.MapMLLayer = L.Layer.extend({
         bboxTemplate += xmaxName + "={" + xmaxName + "}" + "&";
         bboxTemplate += ymaxName + "={" + ymaxName + "}";
         
-        if (!b.intersects(this.getBounds())) return null;
+        
+        // check that the map extent intersects the service bounds for the current zoom
+        //if (!b.intersects(this.getPixelBounds())) return null;
         
         var zoom = extent.querySelectorAll("input[type=zoom]")[0];
         var projection = extent.querySelectorAll("input[type=projection]")[0];
@@ -280,6 +314,7 @@ M.MapMLLayer = L.Layer.extend({
         var min = parseInt(zoom.getAttribute("min")),
             max = parseInt(zoom.getAttribute("max"));
 
+        // check that the zoom of the map is in the range of the zoom of the service
         var values = {};
         var mapZoom = this._map.getZoom();
         if ( min <= mapZoom && mapZoom <= max) {
@@ -291,11 +326,12 @@ M.MapMLLayer = L.Layer.extend({
         var zoomName = zoom.getAttribute('name')?zoom.getAttribute('name').trim():'zoom';
         var zoomTemplate = zoomName + "={" + zoomName + "}";
 
-        values.xmin = b.getWest();
-        values.ymin = b.getSouth();
-        values.xmax = b.getEast();
-        values.ymax = b.getNorth();
+        values.xmin = b.min.x;
+        values.ymin = b.min.y;
+        values.xmax = b.max.x;
+        values.ymax = b.max.y;
 
+        // check that the service projection matches the Tiled CRS name of the map
         if ( projection.getAttribute("value") === this.options.projection) {
           values.projection = projection.getAttribute("value");
         } else {
@@ -351,7 +387,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
 		var queue = [];
 		var point;
                 for (var i=0;i<tiles.length;i++) {
-                    point = new L.Point(tiles[i].getAttribute('x'), tiles[i].getAttribute('y'));
+                    point = new L.Point(tiles[i].getAttribute('col'), tiles[i].getAttribute('row'));
                     if (this._isValidTile(point)) {
                         queue.push(tiles[i]);
                     }
@@ -376,7 +412,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
 		this._level.el.appendChild(fragment);
 	},
 	_addTile: function (tileToLoad, container) {
-                var tilePoint = new L.Point(tileToLoad.getAttribute('x'), tileToLoad.getAttribute('y'));
+                var tilePoint = new L.Point(tileToLoad.getAttribute('col'), tileToLoad.getAttribute('row'));
 		var coords = this._getTilePos(tilePoint);
                 coords.z = this._map.getZoom();
                 var key = this._tileCoordsToKey(coords);
@@ -718,14 +754,14 @@ M.MapMLLayerControl = L.Control.Layers.extend({
 	},
         _onMapMoveEnd: function(e) {
                 var zoom = this._map.getZoom(),
-                    bounds = this._map.getBounds(),
+                    bounds = this._map.getPixelBounds(),
                     zoomBounds, i, obj, lyrBounds, visible;
 		for (i in this._layers) {
 			obj = this._layers[i];
                         if (obj.layer._extent) {
-                            lyrBounds = obj.layer.getBounds();
+                            lyrBounds = obj.layer.getPixelBounds();
                             zoomBounds = obj.layer.getZoomBounds();
-                            visible = bounds.intersects(lyrBounds) && this._withinZoomBounds(zoom, zoomBounds);
+                            visible = this._withinZoomBounds(zoom, zoomBounds) &&  bounds.intersects(lyrBounds) ;
                             if (!visible) {
                                 obj.input.disabled = true;
                                 obj.input.nextElementSibling.style.fontStyle = 'italic';
