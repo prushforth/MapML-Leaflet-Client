@@ -36,8 +36,7 @@ window.M = M;
   
 M.MapMLLayer = L.Layer.extend({
     options: {
-        maxNext: 10,
-        projection: "WGS84"
+        maxNext: 10
 	},    
     initialize: function (href, options) {
         this._href = href;
@@ -109,11 +108,16 @@ M.MapMLLayer = L.Layer.extend({
         bounds.max = Math.max(v1,v2);
         return bounds;
     },
-    // TODO modify this method to retrieve the (projected, scaled) bounds for 
-    // the zoom level, or the bounds for the minimum zoom level if not specified
-    getPixelBounds: function(zoom) {
+    // retrieve the (projected, scaled) layer extent for the current zoom level
+    getLayerExtentBounds: function(map) {
+        
+        var zoom = map.getZoom(), projection = map.options.projection,
+            projecting = (projection !== this._extent.querySelector('[type=projection]').getAttribute('value'));
+        
         if (!this._extent) return;
+        
         var xmin,ymin,xmax,ymax,v1,v2;
+            
         v1 = this._extent.querySelector('[type=xmin]').getAttribute('min');
         v2 = this._extent.querySelector('[type=xmax]').getAttribute('min');
         xmin = Math.min(v1,v2);
@@ -126,7 +130,20 @@ M.MapMLLayer = L.Layer.extend({
         v1 = this._extent.querySelector('[type=ymin]').getAttribute('max');
         v2 = this._extent.querySelector('[type=ymax]').getAttribute('max');
         ymax = Math.max(v1,v2);
-        return L.bounds(L.point(xmin,ymin), L.point(xmin,ymin));
+        if (projecting) {
+            //project and scale to M[projection] from WGS84
+            var p = M[projection],
+            corners = [
+              p.latLngToPoint(L.latLng([ymin,xmin]),zoom),
+              p.latLngToPoint(L.latLng([ymax,xmax]),zoom), 
+              p.latLngToPoint(L.latLng([ymin,xmin]),zoom), 
+              p.latLngToPoint(L.latLng([ymin,xmax]),zoom)
+            ];
+            return L.bounds(corners);
+        } else {
+            // the following ASSUMES that the extent's zoom value === map.getZoom()
+            return L.bounds(L.point(xmin,ymin), L.point(xmax,ymax));
+        }
     },
     getAttribution: function () {
         return this.options.attribution;
@@ -211,8 +228,10 @@ M.MapMLLayer = L.Layer.extend({
             if (this.responseXML) {
               if (requestCounter === 0) {
                 var serverExtent = this.responseXML.getElementsByTagName('extent')[0];
-                layer._el.appendChild(document.importNode(serverExtent,true));
-              }
+                  layer["_extent"] = serverExtent;
+                  // the serverExtent should be removed if necessary from layer._el before by _initEl
+                  layer._el.appendChild(document.importNode(serverExtent,true));
+                }
               if (this.responseXML.getElementsByTagName('feature').length > 0)
                   layer._mapml.addData(this.responseXML);
               if (this.responseXML.getElementsByTagName('tile').length > 0) {
@@ -267,56 +286,69 @@ M.MapMLLayer = L.Layer.extend({
         //this._map.removeLayer(this._mapml);
         return;
     },
-    _calculateUrl: function(vector) {
-        // this function should either return a URL or null, so that its caller
-        // can 'disable'/ grey-out the layer in the layer control until such
-        // time that the (proposed) request is within the zoom / bounds described
-        // by the server in a previous response.
+    // return the LatLngBounds of the map unprojected such that the whole
+    // map is covered, not just a band defined by the projected map bounds.
+    _getUnprojectedMapLatLngBounds: function(map) {
+      
+          map = map||this._map, 
+                  origin = map.getPixelOrigin(), 
+                  bounds = map.getPixelBounds(),
+          nw = map.unproject(origin),
+          sw = map.unproject(bounds.getBottomLeft()),
+          ne = map.unproject(bounds.getTopRight()),
+          se = map.unproject(origin.add(map.getSize()));
+          return L.latLngBounds(sw,ne).extend(se).extend(nw);
+    },
+    _calculateUrl: function() {
         
         if (!this._el && !this._extent) return this._href;
         var extent = this._el.getElementsByTagName('extent')[0] || this._extent;
-        // at this point, if there is no extent, we might have to return
-        // one of the cardinal direction link rels...  the issue there is
-        // determining in what direction the gesture took the map/
-        // for now just return the original href entered by the html author.
         if (!extent) return this._href;
         var action = extent.getAttribute("action");
         if (!action) return null;
-        // gets the extent of the map at the current zoom level in Tiled CRS coordinates
-        var b = this._map.getPixelBounds();
-        var xmin = extent.querySelectorAll("input[type=xmin]")[0];
-        var ymin = extent.querySelectorAll("input[type=ymin]")[0];
-        var xmax = extent.querySelectorAll("input[type=xmax]")[0];
-        var ymax = extent.querySelectorAll("input[type=ymax]")[0];
+        var b,
+            projection = extent.querySelectorAll('input[type=projection]')[0],
+            projectionValue = projection.getAttribute('value');
+        
+        // if the mapml extent being processed is WGS84, we need to speak in those units
+        if (projectionValue == 'WGS84') {
+            b = this._getUnprojectedMapLatLngBounds();
+        } else {
+            // otherwise, use the bounds of the map
+            b = this._map.getPixelBounds();
+        }
+        
+        // retrieve the required extent inputs by type
+        var xmin = extent.querySelectorAll("input[type=xmin]")[0],
+            ymin = extent.querySelectorAll("input[type=ymin]")[0],
+            xmax = extent.querySelectorAll("input[type=xmax]")[0],
+            ymax = extent.querySelectorAll("input[type=ymax]")[0];
+        
+        // if even one of them doesn't exist, we're snookered
         if (!xmin|| !ymin || !xmax || !ymax ) return  null;
-        var xminValue = parseFloat(xmin.getAttribute("min"));
+        
+        // use the @name as the name of the variable to transmit, or the @type value by default
         var xminName = (xmin.getAttribute('name')?xmin.getAttribute('name').trim():'xmin');
-        var yminValue = parseFloat(ymin.getAttribute("min"));
         var yminName = (ymin.getAttribute('name')?ymin.getAttribute('name').trim():'ymin');
-        var xmaxValue = parseFloat(xmax.getAttribute("max"));
         var xmaxName = (xmax.getAttribute('name')?xmax.getAttribute('name').trim():'xmax');
-        var ymaxValue = parseFloat(ymax.getAttribute("max"));
         var ymaxName = (ymax.getAttribute('name')?ymax.getAttribute('name').trim():'ymax');
+        
+        // generate a URI template for the extent request using the variable names above
         var bboxTemplate = "";
         bboxTemplate += xminName + "={" + xminName + "}" + "&";
         bboxTemplate += yminName + "={" + yminName + "}" + "&";
         bboxTemplate += xmaxName + "={" + xmaxName + "}" + "&";
         bboxTemplate += ymaxName + "={" + ymaxName + "}";
         
-        
-        // check that the map extent intersects the service bounds for the current zoom
-        //if (!b.intersects(this.getPixelBounds())) return null;
-        
+        // establish the range of zoom values for the extent
         var zoom = extent.querySelectorAll("input[type=zoom]")[0];
-        var projection = extent.querySelectorAll("input[type=projection]")[0];
         if ( !zoom || !projection) return null;
 
         var min = parseInt(zoom.getAttribute("min")),
-            max = parseInt(zoom.getAttribute("max"));
-
+            max = parseInt(zoom.getAttribute("max")),
+            values = {}, // the values object will contain the values for the URI template
+            mapZoom = this._map.getZoom();
         // check that the zoom of the map is in the range of the zoom of the service
-        var values = {};
-        var mapZoom = this._map.getZoom();
         if ( min <= mapZoom && mapZoom <= max) {
           values.zoom = mapZoom;
         } else {
@@ -326,17 +358,11 @@ M.MapMLLayer = L.Layer.extend({
         var zoomName = zoom.getAttribute('name')?zoom.getAttribute('name').trim():'zoom';
         var zoomTemplate = zoomName + "={" + zoomName + "}";
 
-        values.xmin = b.min.x;
-        values.ymin = b.min.y;
-        values.xmax = b.max.x;
-        values.ymax = b.max.y;
-
-        // check that the service projection matches the Tiled CRS name of the map
-        if ( projection.getAttribute("value") === this.options.projection) {
-          values.projection = projection.getAttribute("value");
-        } else {
-          return null;
-        }
+        values.xmin = b.min?b.min.x:b.getWest();
+        values.ymin = b.min?b.min.y:b.getSouth();
+        values.xmax = b.max?b.max.x:b.getEast();
+        values.ymax = b.max?b.max.y:b.getNorth();
+        values.projection = projectionValue;
         
         var projectionName = projection.getAttribute('name')?projection.getAttribute('name').trim():'projection';
         var projectionTemplate = projectionName + "={" + projectionName + "}";
@@ -753,15 +779,22 @@ M.MapMLLayerControl = L.Control.Layers.extend({
                     .off('moveend', this._onMapMoveEnd, this);
 	},
         _onMapMoveEnd: function(e) {
+                // get the bounds of the map in Tiled CRS pixel units
                 var zoom = this._map.getZoom(),
                     bounds = this._map.getPixelBounds(),
-                    zoomBounds, i, obj, lyrBounds, visible;
+                    zoomBounds, i, obj, visible;
 		for (i in this._layers) {
 			obj = this._layers[i];
                         if (obj.layer._extent) {
-                            lyrBounds = obj.layer.getPixelBounds();
+                            
+                            // get the 'bounds' of zoom levels of the layer as described by the server
                             zoomBounds = obj.layer.getZoomBounds();
-                            visible = this._withinZoomBounds(zoom, zoomBounds) &&  bounds.intersects(lyrBounds) ;
+                            // if the current zoom is in the range of the layer zoom, 
+                            // and the current map bounds intersects the bounds of the layer, 
+                            // enable the layer check box, otherwise, disable it and italicize it
+                            // TODO something to improve / deliver accessibility 
+                            // layerBounds may be undefined, in which case the layer should be disabled
+                            visible = this._withinZoomBounds(zoom, zoomBounds) && bounds.intersects(obj.layer.getLayerExtentBounds(this._map)) ;
                             if (!visible) {
                                 obj.input.disabled = true;
                                 obj.input.nextElementSibling.style.fontStyle = 'italic';
