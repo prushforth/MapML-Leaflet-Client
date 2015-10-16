@@ -108,7 +108,7 @@ M.MapMLLayer = L.Layer.extend({
         bounds.max = Math.max(v1,v2);
         return bounds;
     },
-    // retrieve the (projected, scaled) layer extent for the current zoom level
+    // retrieve the (projected, scaled) layer extent for the current map zoom level
     getLayerExtentBounds: function(map) {
         
         var zoom = map.getZoom(), projection = map.options.projection,
@@ -116,7 +116,7 @@ M.MapMLLayer = L.Layer.extend({
         
         if (!this._extent) return;
         
-        var xmin,ymin,xmax,ymax,v1,v2;
+        var xmin,ymin,xmax,ymax,v1,v2,extentZoomValue;
             
         v1 = this._extent.querySelector('[type=xmin]').getAttribute('min');
         v2 = this._extent.querySelector('[type=xmax]').getAttribute('min');
@@ -130,6 +130,8 @@ M.MapMLLayer = L.Layer.extend({
         v1 = this._extent.querySelector('[type=ymin]').getAttribute('max');
         v2 = this._extent.querySelector('[type=ymax]').getAttribute('max');
         ymax = Math.max(v1,v2);
+        extentZoomValue = parseInt(this._extent.querySelector('[type=zoom]').getAttribute('value'));
+        // WGS84 can be converted to Tiled CRS units
         if (projecting) {
             //project and scale to M[projection] from WGS84
             var p = M[projection],
@@ -141,8 +143,17 @@ M.MapMLLayer = L.Layer.extend({
             ];
             return L.bounds(corners);
         } else {
-            // the following ASSUMES that the extent's zoom value === map.getZoom()
-            return L.bounds(L.point(xmin,ymin), L.point(xmax,ymax));
+            // if the zoom level of the extent does not match that of the map
+            if (extentZoomValue !== zoom) {
+                // convert the extent bounds to corresponding bounds at the current map zoom
+                var p = M[projection];
+                return L.bounds(
+                    p.latLngToPoint(p.pointToLatLng(L.point(xmin,ymin),extentZoomValue),zoom),
+                    p.latLngToPoint(p.pointToLatLng(L.point(xmax,ymax),extentZoomValue),zoom));
+            } else {
+                // the extent's zoom value === map.getZoom(), return the bounds
+                return L.bounds(L.point(xmin,ymin), L.point(xmax,ymax));
+            }
         }
     },
     getAttribution: function () {
@@ -175,8 +186,6 @@ M.MapMLLayer = L.Layer.extend({
             xhr.send();
         };
 
-        // TODO modify this method to create an array of bounds, one per zoom
-        // level indicated by the server in its first response
         function _processResponse() {
             if (this.responseXML) {
                 var xml = this.responseXML;
@@ -188,7 +197,6 @@ M.MapMLLayer = L.Layer.extend({
                 L.setOptions(layer,{projection:xml.querySelectorAll('input[type=projection]')[0].getAttribute('value'), attribution:attText });
                 layer["_extent"] = serverExtent;
                 if (layer._map) {
-                    layer._map.attributionControl.addAttribution(attText);
                     layer._map.fire('moveend', layer);
                 }
             }
@@ -370,6 +378,12 @@ M.MapMLLayer = L.Layer.extend({
         var requestTemplate = bboxTemplate + "&" + zoomTemplate + "&" + projectionTemplate;
         action += ((action.search(/\?/g) === -1) ? "?" : "&") + requestTemplate;
         return L.Util.template(action, values);
+    },
+    // this takes into account that WGS84 is considered a wildcard match.
+    _projectionMatches: function(map) {
+        map = map||this._map;
+        if (!map.options.projection || this.options.projection !== 'WGS84' && map.options.projection !== this.options.projection) return false;
+        return true;
     }
 });
 M.mapMLLayer = function (url, options) {
@@ -753,93 +767,88 @@ L.SVG.include({
 });
 
 
-/* removes 'base' layers.   */
+/* removes 'base' layers as a concept */
 M.MapMLLayerControl = L.Control.Layers.extend({
-	initialize: function (overlays, options) {
-		L.setOptions(this, options);
-                this.options.collapsed = false;
+    initialize: function (overlays, options) {
+        L.setOptions(this, options);
+        this.options.collapsed = false;
 
-		this._layers = {};
-		this._lastZIndex = 0;
-		this._handlingClick = false;
+        this._layers = {};
+        this._lastZIndex = 0;
+        this._handlingClick = false;
 
-		for (var i in overlays) {
-			this._addLayer(overlays[i], i, true);
-		}
-	},
-	onAdd: function () {
-		this._initLayout();
-                this._map.on('moveend', this._onMapMoveEnd, this);
-		this._update();
-                
-		return this._container;
-	},
-	onRemove: function () {
-		this._map
-                    .off('moveend', this._onMapMoveEnd, this);
-	},
-        _onMapMoveEnd: function(e) {
-                // get the bounds of the map in Tiled CRS pixel units
-                var zoom = this._map.getZoom(),
-                    bounds = this._map.getPixelBounds(),
-                    zoomBounds, i, obj, visible;
-		for (i in this._layers) {
-			obj = this._layers[i];
-                        if (obj.layer._extent) {
-                            
-                            // get the 'bounds' of zoom levels of the layer as described by the server
-                            zoomBounds = obj.layer.getZoomBounds();
-                            // if the current zoom is in the range of the layer zoom, 
-                            // and the current map bounds intersects the bounds of the layer, 
-                            // enable the layer check box, otherwise, disable it and italicize it
-                            // TODO something to improve / deliver accessibility 
-                            // layerBounds may be undefined, in which case the layer should be disabled
-                            visible = this._withinZoomBounds(zoom, zoomBounds) && bounds.intersects(obj.layer.getLayerExtentBounds(this._map)) ;
-                            if (!visible) {
-                                obj.input.disabled = true;
-                                obj.input.nextElementSibling.style.fontStyle = 'italic';
-                            } else {
-                                obj.input.disabled = false;
-                                obj.input.style = null;
-                                obj.input.nextElementSibling.style.fontStyle = null;
-                            }
-                        }
-		}
-        },
-        _withinZoomBounds: function(zoom, range) {
-            return range.min <= zoom && zoom <= range.max;
-        },
-	_addItem: function (obj) {
-		var label = document.createElement('label'),
-		    input,
-		    checked = this._map.hasLayer(obj.layer);
+        for (var i in overlays) {
+                this._addLayer(overlays[i], i, true);
+        }
+    },
+    onAdd: function () {
+        this._initLayout();
+        this._map.on('moveend', this._onMapMoveEnd, this);
+        this._map.fire('moveend', this);
+        this._update();
+        return this._container;
+    },
+    onRemove: function () {
+        this._map.off('moveend', this._onMapMoveEnd, this);
+    },
+    _onMapMoveEnd: function(e) {
+        // get the bounds of the map in Tiled CRS pixel units
+        var zoom = this._map.getZoom(),
+            bounds = this._map.getPixelBounds(),
+            zoomBounds, i, obj, visible, projectionMatches;
+        for (i in this._layers) {
+            obj = this._layers[i];
+            if (obj.layer._extent) {
 
-		if (obj.overlay) {
-			input = document.createElement('input');
-			input.type = 'checkbox';
-			input.className = 'leaflet-control-layers-selector';
-			input.defaultChecked = checked;
-                        obj.input = input;
-		} else {
-			input = this._createRadioElement('leaflet-base-layers', checked);
-		}
+                // get the 'bounds' of zoom levels of the layer as described by the server
+                zoomBounds = obj.layer.getZoomBounds();
+                projectionMatches = obj.layer._projectionMatches(this._map);
+                visible = projectionMatches && this._withinZoomBounds(zoom, zoomBounds) && bounds.intersects(obj.layer.getLayerExtentBounds(this._map)) ;
+                if (!visible) {
+                    obj.input.disabled = true;
+                    if (!projectionMatches) {
+                        this._map.removeLayer(obj.layer);
+                        obj.input.disabled = true;
+                        obj.input.checked = false;
+                    }
+                    obj.input.nextElementSibling.style.fontStyle = 'italic';
+                } else {
+                    obj.input.disabled = false;
+                    obj.input.style = null;
+                    obj.input.nextElementSibling.style.fontStyle = null;
+                }
+            }
+        }
+    },
+    _withinZoomBounds: function(zoom, range) {
+        return range.min <= zoom && zoom <= range.max;
+    },
+    _addItem: function (obj) {
+        var label = document.createElement('label'),
+            input,
+            checked = this._map.hasLayer(obj.layer);
 
-		input.layerId = L.stamp(obj.layer);
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'leaflet-control-layers-selector';
+        input.defaultChecked = checked;
+        obj.input = input;
 
-		L.DomEvent.on(input, 'click', this._onInputClick, this);
+        input.layerId = L.stamp(obj.layer);
 
-		var name = document.createElement('span');
-		name.innerHTML = ' ' + obj.name;
+        L.DomEvent.on(input, 'click', this._onInputClick, this);
 
-		label.appendChild(input);
-		label.appendChild(name);
+        var name = document.createElement('span');
+        name.innerHTML = ' ' + obj.name;
 
-		var container = obj.overlay ? this._overlaysList : this._baseLayersList;
-		container.appendChild(label);
+        label.appendChild(input);
+        label.appendChild(name);
 
-		return label;
-	}
-        
+        var container = this._overlaysList;
+        container.appendChild(label);
+
+        return label;
+    }
 });
 M.mapMlLayerControl = function (layers, options) {
 	return new M.MapMLLayerControl(layers, options);
