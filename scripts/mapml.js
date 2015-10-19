@@ -31,6 +31,33 @@ window.M = M;
     ],
     origin: [-34655800, 39310000]
   });
+    M.APSTILE = new L.Proj.CRS('EPSG:5936',
+  '+proj=stere +lat_0=90 +lat_ts=50 +lon_0=-150 +k=0.994 +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m +no_defs',
+  {
+    resolutions: [
+      238810.813354,
+      119405.406677,
+      59702.7033384999,
+      29851.3516692501,
+      14925.675834625,
+      7462.83791731252,
+      3731.41895865639,
+      1865.70947932806,
+      932.854739664032,
+      466.427369832148,
+      233.213684916074,
+      116.606842458037,
+      58.3034212288862,
+      29.1517106145754,
+      14.5758553072877,
+      7.28792765351156,
+      3.64396382688807,
+      1.82198191331174,
+      0.910990956788164,
+      0.45549547826179
+    ],
+    origin: [-2.8567784109255E7, 3.2567784109255E7]
+  });
     M.OSMTILE = L.CRS.EPSG3857;
 }());
   
@@ -197,6 +224,11 @@ M.MapMLLayer = L.Layer.extend({
                 L.setOptions(layer,{projection:xml.querySelectorAll('input[type=projection]')[0].getAttribute('value'), attribution:attText });
                 layer["_extent"] = serverExtent;
                 if (layer._map) {
+                    // if the layer is checked in the layer control, force the addition
+                    // of the attribution just received
+                    if (layer._map.hasLayer(layer)) {
+                        layer._map.attributionControl.addAttribution(layer.getAttribution());
+                    }
                     layer._map.fire('moveend', layer);
                 }
             }
