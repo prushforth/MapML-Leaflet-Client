@@ -3,28 +3,53 @@
   <head>
     <meta charset="utf-8">
     <title>MapML Leaflet client</title>
-    <link rel="stylesheet" href="http://localhost/leaflet-1.0.0-b1/leaflet.css" />
-    <script src="http://localhost/leaflet-1.0.0-b1/leaflet-src.js"></script>
+    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-1.0.0-b1/leaflet.css" />
+    <script src="http://cdn.leafletjs.com/leaflet-1.0.0-b1/leaflet.js"></script>
+    <script src="http://localhost/proj4js/proj4-compressed.js"></script>
+    <script src="http://localhost/proj4leaflet/proj4leaflet.js"></script>
     <script src="./scripts/mapml.js"></script>
     <script src="./scripts/URI.js"></script>
-    <script src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v0.0.4/Leaflet.fullscreen.min.js'></script>
-    <link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v0.0.4/leaflet.fullscreen.css' rel='stylesheet' />
   </head>
   <body>
     <h1>MapML Leaflet client</h1>
-    <div id="mapml-map" style="height: 480px; width: 640px"></div>
-    <script>
-      var cbmt =        M.mapMLLayer('http://geogratis.gc.ca/mapml/cbmt/', {zIndex:2,projection:'OSMTILE'}),
-          osm =         M.mapMLLayer('http://geogratis.gc.ca/mapml/osm/',{zIndex:1,projection:'OSMTILE'})
-          canvec =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',{zIndex:3,projection:'WGS84'})
-          mapMLMap =    L.map('mapml-map',{
+    <div id="osmtile-map" style="position: absolute;top: 0;bottom: 498px;width: 100%;"></div>
+    <div id="cbmtile-map" style="position: absolute;top: 450px;bottom: 0;width: 100%;"></div>
+      <script>
+      var cbmt =        M.mapMLLayer('http://dev.geogratis.gc.ca/mapml/cbmt/'),
+          osm =         M.mapMLLayer('http://dev.geogratis.gc.ca/mapml/osm/',{zIndex:1}),
+          canvec1 =         M.mapMLLayer('http://dev.geogratis.gc.ca/mapml/canvec/50k/features/',{opacity: 0.2,zIndex:3}),
+          canvec2 =         M.mapMLLayer('http://dev.geogratis.gc.ca/mapml/canvec/50k/features/',{opacity: 0.5,zIndex:3}),
+          osmMap =    L.map('osmtile-map',{
                   center: [45.398043,-75.70683],
+                  projection:'OSMTILE',
+                  crs: M['OSMTILE'],
                   zoom: 15,
                   layers: [osm],
                   fullscreenControl: true
                 }),
-          layerControl = M.mapMlLayerControl({"Open Street Map":osm, 'Canada Base Map':cbmt, 'CanVec+ 031G':canvec}).addTo(mapMLMap);
-          mapMLMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>')
+          osmLayerControl = M.mapMlLayerControl({"Open Street Map":osm, "Canada Base Map": cbmt, "CanVec+":canvec1}).addTo(osmMap);
+          osmMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
+          var cbmtMap =    L.map('cbmtile-map',{
+                  center: [45.398043,-75.70683],
+                  projection: 'CBMTILE',
+                  crs: M['CBMTILE'],
+                  zoom: 17,
+                  layers: [cbmt],
+                  fullscreenControl: true
+                }),
+          cbmtLayerControl = M.mapMlLayerControl({'Canada Base Map':cbmt, "CanVec+":canvec2}).addTo(cbmtMap);
+          cbmtMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
+//          var arctic =        M.mapMLLayer('http://localhost/mapml/arctic/'), 
+//                  apsMap =    L.map('apstile-map',{
+//                  center: [90,0],
+//                  projection: 'APSTILE',
+//                  crs: M['APSTILE'],
+//                  zoom: 3,
+//                  layers: [arctic],
+//                  fullscreenControl: true
+//                }),
+//          apsLayerControl = M.mapMlLayerControl({'Arctic Ocean Base Map':arctic}).addTo(apsMap);
+//          apsMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
     </script>
   </body>
 </html>
