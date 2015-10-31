@@ -804,7 +804,9 @@ M.MapMLLayerControl = L.Control.Layers.extend({
     initialize: function (overlays, options) {
         L.setOptions(this, options);
         this.options.collapsed = false;
-
+        
+        // the _layers array contains objects like {layer: layer, name: "name", overlay: true}
+        // the array index is the id of the layer returned by L.stamp(layer) which I guess is a unique hash
         this._layers = {};
         this._lastZIndex = 0;
         this._handlingClick = false;
@@ -816,8 +818,8 @@ M.MapMLLayerControl = L.Control.Layers.extend({
     onAdd: function () {
         this._initLayout();
         this._map.on('moveend', this._onMapMoveEnd, this);
-        this._map.fire('moveend', this);
         this._update();
+        this._map.fire('moveend', this);
         return this._container;
     },
     onRemove: function () {
