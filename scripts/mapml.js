@@ -822,8 +822,13 @@ M.MapMLLayerControl = L.Control.Layers.extend({
         this._map.fire('moveend', this);
         return this._container;
     },
-    onRemove: function () {
-        this._map.off('moveend', this._onMapMoveEnd, this);
+    onRemove: function (map) {
+        map.off('moveend', this._onMapMoveEnd, this);
+        // remove layer-registerd event handlers so that if the control is not
+        // on the map it does not generate layer events
+        for (var i in this._layers) {
+          this._layers[i].layer.off('add remove', this._onLayerChange, this);
+        }
     },
     _onMapMoveEnd: function(e) {
         // get the bounds of the map in Tiled CRS pixel units
