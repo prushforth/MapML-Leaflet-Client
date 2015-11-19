@@ -60,7 +60,7 @@ window.M = M;
   });
     M.OSMTILE = L.CRS.EPSG3857;
 }());
-  
+
 M.MapMLLayer = L.Layer.extend({
     options: {
         maxNext: 10
@@ -296,12 +296,13 @@ M.MapMLLayer = L.Layer.extend({
             }
         };
         function _parseLink(rel, xml) {
-            // TODO need to determine the baseUri even if the xml does not contain
-            // a <base> element
             // depends on js-uri http://code.google.com/p/js-uri/ 
-            var baseUri = new URI(xml.querySelector('base').getAttribute('href'));
-            var link = xml.querySelector('link[rel='+rel+']');
-            var relLink = link?new URI(link.getAttribute('href')).resolve(baseUri):null;
+            // would be greate to depend on the URL standard and not a library
+            var baseEl = xml.querySelector('base'), 
+                base =  baseEl ? baseEl.getAttribute('href'):null,
+                baseUri = new URI(base||xml.baseURI),
+                link = xml.querySelector('link[rel='+rel+']'),
+                relLink = link?new URI(link.getAttribute('href')).resolve(baseUri):null;
             return relLink;
         };
     },
@@ -787,16 +788,6 @@ L.extend(M.MapML, {
 M.mapMl = function (mapml, options) {
 	return new M.MapML(mapml, options);
 };
-L.SVG.include({
-	_updateStyle: function (layer) {
-		var path = layer._path,
-			options = layer.options;
-                if (options.opacity) {
-                  path.setAttribute('style', 'opacity: ' + options.opacity);
-                }
-		path.setAttribute('pointer-events', options.pointerEvents || (options.interactive ? 'visiblePainted' : 'none'));
-	}
-});
 
 
 /* removes 'base' layers as a concept */
