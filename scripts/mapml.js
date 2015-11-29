@@ -61,6 +61,17 @@ window.M = M;
     M.OSMTILE = L.CRS.EPSG3857;
 }());
 
+M.Util = {
+  coordsToArray: function(containerPoints) {
+    // returns an array of arrays of coordinate pairs coordsToArray("1,2,3,4") -> [[1,2],[3,4]]
+    for (var i=1, pairs = [], coords = containerPoints.split(",");i<coords.length;i+=2) {
+      pairs.push([parseInt(coords[i-1]),parseInt(coords[i])]);
+    }
+    return pairs;
+  }
+};
+M.coordsToArray = M.Util.coordsToArray;
+  
 M.MapMLLayer = L.Layer.extend({
     options: {
         maxNext: 10
