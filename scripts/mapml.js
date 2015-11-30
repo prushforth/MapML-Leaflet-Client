@@ -60,6 +60,17 @@ window.M = M;
   });
     M.OSMTILE = L.CRS.EPSG3857;
 }());
+
+M.Util = {
+  coordsToArray: function(containerPoints) {
+    // returns an array of arrays of coordinate pairs coordsToArray("1,2,3,4") -> [[1,2],[3,4]]
+    for (var i=1, pairs = [], coords = containerPoints.split(",");i<coords.length;i+=2) {
+      pairs.push([parseInt(coords[i-1]),parseInt(coords[i])]);
+    }
+    return pairs;
+  }
+};
+M.coordsToArray = M.Util.coordsToArray;
   
 M.MapMLLayer = L.Layer.extend({
     options: {
@@ -296,12 +307,13 @@ M.MapMLLayer = L.Layer.extend({
             }
         };
         function _parseLink(rel, xml) {
-            // TODO need to determine the baseUri even if the xml does not contain
-            // a <base> element
             // depends on js-uri http://code.google.com/p/js-uri/ 
-            var baseUri = new URI(xml.querySelector('base').getAttribute('href'));
-            var link = xml.querySelector('link[rel='+rel+']');
-            var relLink = link?new URI(link.getAttribute('href')).resolve(baseUri):null;
+            // would be greate to depend on the URL standard and not a library
+            var baseEl = xml.querySelector('base'), 
+                base =  baseEl ? baseEl.getAttribute('href'):null,
+                baseUri = new URI(base||xml.baseURI),
+                link = xml.querySelector('link[rel='+rel+']'),
+                relLink = link?new URI(link.getAttribute('href')).resolve(baseUri):null;
             return relLink;
         };
     },
@@ -787,16 +799,6 @@ L.extend(M.MapML, {
 M.mapMl = function (mapml, options) {
 	return new M.MapML(mapml, options);
 };
-L.SVG.include({
-	_updateStyle: function (layer) {
-		var path = layer._path,
-			options = layer.options;
-                if (options.opacity) {
-                  path.setAttribute('style', 'opacity: ' + options.opacity);
-                }
-		path.setAttribute('pointer-events', options.pointerEvents || (options.interactive ? 'visiblePainted' : 'none'));
-	}
-});
 
 
 /* removes 'base' layers as a concept */
@@ -804,7 +806,9 @@ M.MapMLLayerControl = L.Control.Layers.extend({
     initialize: function (overlays, options) {
         L.setOptions(this, options);
         this.options.collapsed = false;
-
+        
+        // the _layers array contains objects like {layer: layer, name: "name", overlay: true}
+        // the array index is the id of the layer returned by L.stamp(layer) which I guess is a unique hash
         this._layers = {};
         this._lastZIndex = 0;
         this._handlingClick = false;
@@ -816,12 +820,17 @@ M.MapMLLayerControl = L.Control.Layers.extend({
     onAdd: function () {
         this._initLayout();
         this._map.on('moveend', this._onMapMoveEnd, this);
-        this._map.fire('moveend', this);
         this._update();
+        this._map.fire('moveend', this);
         return this._container;
     },
-    onRemove: function () {
-        this._map.off('moveend', this._onMapMoveEnd, this);
+    onRemove: function (map) {
+        map.off('moveend', this._onMapMoveEnd, this);
+        // remove layer-registerd event handlers so that if the control is not
+        // on the map it does not generate layer events
+        for (var i in this._layers) {
+          this._layers[i].layer.off('add remove', this._onLayerChange, this);
+        }
     },
     _onMapMoveEnd: function(e) {
         // get the bounds of the map in Tiled CRS pixel units
