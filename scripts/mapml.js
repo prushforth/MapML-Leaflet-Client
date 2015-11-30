@@ -578,8 +578,6 @@ M.mapMLTileLayer = function (url, options) {
 
 M.MapML = L.FeatureGroup.extend({
 	initialize: function (mapml, options) {
-                options.stroke = false;
-                options.fill = false;
 		L.setOptions(this, options);
 
 		this._layers = {};
