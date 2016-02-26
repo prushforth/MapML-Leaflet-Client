@@ -71,11 +71,107 @@ M.Util = {
   }
 };
 M.coordsToArray = M.Util.coordsToArray;
+
+M.ImageOverlay = L.ImageOverlay.extend({
+	initialize: function (url, location, size, angle, container, options) { // (String, Point, Point, Number, Element, Object)
+                this._container = container;
+		this._url = url;
+                // instead of calculating where the image goes, put it at 0,0
+		//this._location = L.point(location);
+                // the location for WMS requests will be the upper left hand
+                // corner of the map.  When the map is initialized, that is 0,0,
+                // but as the user pans, of course the
+		this._location = location;
+                this._size = L.point(size);
+                this._angle = angle;
+
+		L.setOptions(this, options);
+	},
+        getEvents: function() {
+		var events = {
+			zoom: this._reset,
+			viewreset: this._reset
+		};
+
+		if (this._zoomAnimated) {
+			events.zoomanim = this._animateZoom;
+		}
+
+		return events;
+        },
+	onAdd: function () {
+		if (!this._image) {
+			this._initImage();
+
+			if (this.options.opacity < 1) {
+				this._updateOpacity();
+			}
+		}
+
+		if (this.options.interactive) {
+			L.DomUtil.addClass(this._image, 'leaflet-interactive');
+			this.addInteractiveTarget(this._image);
+		}
+
+		this._container.appendChild(this._image);
+		this._reset();
+	},
+	onRemove: function () {
+		L.DomUtil.remove(this._image);
+		if (this.options.interactive) {
+			this.removeInteractiveTarget(this._image);
+		}
+	},
+	_animateZoom: function (e) {
+		var scale = this._map.getZoomScale(e.zoom),
+			offset = this._map._latLngToNewLayerPoint(this._map.getBounds().getNorthWest(), e.zoom, e.center);
+		L.DomUtil.setTransform(this._image, offset, scale);
+	},
+        _reset: function () {
+		var image = this._image,
+		    location = this._location,
+                    size = this._size,
+                    angle = 0.0;
+
+                // TBD use the angle to establish the image rotation in CSS
+
+		L.DomUtil.setPosition(image, location);
+
+		image.style.width  = size.x + 'px';
+		image.style.height = size.y + 'px';
+        }
+        
+});
+M.imageOverlay = function (url, location, size, angle, container, options) {
+        return new M.ImageOverlay(url, location, size, angle, container, options);
+};
+// images received in a MapML response are grouped into one div.leaflet-layer / container
+M.ImageLayer = L.LayerGroup.extend({
+	onAdd: function (map) {
+		if (this._container) { return; }
+
+		this._container = L.DomUtil.create('div', 'leaflet-layer');
+		this.getPane().appendChild(this._container);
+		for (var i in this._layers) {
+			map.addLayer(this._layers[i]);
+		}
+	},
+	onRemove: function (map) {
+		L.DomUtil.remove(this._container);
+		this._container = null;
+		for (var i in this._layers) {
+			map.removeLayer(this._layers[i]);
+		}
+	}
+});
+M.imageLayer = function (layers) {
+	return new M.ImageLayer(layers);
+};
   
 M.MapMLLayer = L.Layer.extend({
     options: {
         maxNext: 10
-	},    
+    },    
     initialize: function (href, options) {
         this._href = href;
         this._initExtent();
@@ -108,6 +204,11 @@ M.MapMLLayer = L.Layer.extend({
         }
         map.addLayer(this._mapml);
         
+        if (!this._imageLayer) {
+            this._imageLayer = M.imageLayer();
+        }
+        map.addLayer(this._imageLayer);
+        
         if (!this._tileLayer) {
           this._tileLayer = M.mapMLTileLayer(this.href?this.href:this._href, this.options);
         }
@@ -136,6 +237,7 @@ M.MapMLLayer = L.Layer.extend({
         this._mapml.clearLayers();
         map.removeLayer(this._mapml);
         map.removeLayer(this._tileLayer);
+        map.removeLayer(this._imageLayer);
     },
     getZoomBounds: function () {
         if (!this._extent) return;
@@ -282,9 +384,10 @@ M.MapMLLayer = L.Layer.extend({
                   layer["_extent"] = serverExtent;
                   // the serverExtent should be removed if necessary from layer._el before by _initEl
                   layer._el.appendChild(document.importNode(serverExtent,true));
-                }
-              if (this.responseXML.getElementsByTagName('feature').length > 0)
+              }
+              if (this.responseXML.getElementsByTagName('feature').length > 0) {
                   layer._mapml.addData(this.responseXML);
+              }
               if (this.responseXML.getElementsByTagName('tile').length > 0) {
                   var tiles = document.createElement("tiles");
                   var newTiles = this.responseXML.getElementsByTagName('tile');
@@ -292,6 +395,31 @@ M.MapMLLayer = L.Layer.extend({
                       tiles.appendChild(document.importNode(newTiles[i], true));
                   }
                   layer._el.appendChild(tiles);
+              }
+              if (this.responseXML.getElementsByTagName('image').length > 0) {
+                  var images = this.responseXML.getElementsByTagName('image'),
+                      imageOverlays = [],
+                      // need a reference to the _imageLayer container element to pass to children
+                      // so they can append the img element they create to it.
+                      container = layer._imageLayer._container;
+                  for (var i=0;i<images.length;i++) {
+                      var image = images[i],
+                          src = image.getAttribute('src'),
+                          map = layer._map,
+                          // TODO when the image location is returned by the MapML
+                          // document image element, use that location instead
+                          // of map.getPixelBounds().min.  Also, read and use the
+                          // angle of the image from the mapml//image element
+                          // Currently, map.getPixelBounds() usage assumes that
+                          // the returned image fills the extent of the mapml document
+                          location = map.getPixelBounds().min.subtract(map.getPixelOrigin()),
+                          size = map.getSize();
+                          imageOverlays[i] = M.imageOverlay(src,location,size,/* angle */0,container);
+                  }
+                  // TODO clearing the images here is awkward.  It should be done
+                  // only when the imageOverlays have been loaded, but not sure how to do that...
+                  layer._imageLayer.clearLayers();
+                  layer._imageLayer.initialize(imageOverlays);
               }
               var next = _parseLink('next',this.responseXML);
               if (next && requestCounter < layer.options.maxNext) {
@@ -363,7 +491,7 @@ M.MapMLLayer = L.Layer.extend({
             projectionValue = projection.getAttribute('value');
         
         // if the mapml extent being processed is WGS84, we need to speak in those units
-        if (projectionValue == 'WGS84') {
+        if (projectionValue === 'WGS84') {
             b = this._getUnprojectedMapLatLngBounds();
         } else {
             // otherwise, use the bounds of the map
