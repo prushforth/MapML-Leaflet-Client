@@ -147,32 +147,13 @@ M.ImageOverlay = L.ImageOverlay.extend({
 M.imageOverlay = function (url, location, size, angle, container, options) {
         return new M.ImageOverlay(url, location, size, angle, container, options);
 };
-// images received in a MapML response are grouped into one div.leaflet-layer / container
-M.ImageLayer = L.LayerGroup.extend({
-	onAdd: function (map) {
-		if (this._container) { return; }
-
-		this._container = L.DomUtil.create('div', 'leaflet-layer');
-		this.getPane().appendChild(this._container);
-		for (var i in this._layers) {
-			map.addLayer(this._layers[i]);
-		}
-	},
-	onRemove: function (map) {
-		L.DomUtil.remove(this._container);
-		this._container = null;
-		for (var i in this._layers) {
-			map.removeLayer(this._layers[i]);
-		}
-	}
-});
-M.imageLayer = function (layers) {
-	return new M.ImageLayer(layers);
-};
-  
 M.MapMLLayer = L.Layer.extend({
+    // zIndex has to be set, for the case where the layer is added to the
+    // map before the layercontrol is used to control it (where autoZindex is used)
+    // e.g. in the raw MapML-Leaflet-Client index.html page.
     options: {
-        maxNext: 10
+        maxNext: 10,
+        zIndex: 0
     },    
     initialize: function (href, options) {
         this._href = href;
@@ -207,7 +188,7 @@ M.MapMLLayer = L.Layer.extend({
         map.addLayer(this._mapml);
         
         if (!this._imageLayer) {
-            this._imageLayer = M.imageLayer();
+            this._imageLayer = L.layerGroup();
         }
         map.addLayer(this._imageLayer);
         
@@ -300,6 +281,22 @@ M.MapMLLayer = L.Layer.extend({
     },
     getAttribution: function () {
         return this.options.attribution;
+    },
+    // setZIndex and _updateZIndex are copied directly from Leaflet's GridLayer,
+    // as we want to automatically control z-index behaviour for a MapMLLayer,
+    // and need to provide methods where required by Leaflet code i.e. where internal
+    // methods to L.Control.Layers are invoked but not overridden (by M.MapMLLayerControl)
+    // are invoked by Leaflet ancestor methods. Whew.
+    setZIndex: function (zIndex) {
+        this.options.zIndex = zIndex;
+        this._updateZIndex();
+
+        return this;
+    },
+    _updateZIndex: function () {
+        if (this._container && this.options.zIndex !== undefined && this.options.zIndex !== null) {
+            this._container.style.zIndex = this.options.zIndex;
+        }
     },
     _initExtent: function() {
         if (!this._href) {return;}
@@ -403,7 +400,7 @@ M.MapMLLayer = L.Layer.extend({
                       imageOverlays = [],
                       // need a reference to the _imageLayer container element to pass to children
                       // so they can append the img element they create to it.
-                      container = layer._imageLayer._container;
+                      container = layer._el.parentElement;
                   for (var i=0;i<images.length;i++) {
                       var image = images[i],
                           src = image.getAttribute('src'),
