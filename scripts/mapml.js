@@ -91,7 +91,6 @@ M.ImageOverlay = L.ImageOverlay.extend({
 	},
         getEvents: function() {
 		var events = {
-			zoom: this._reset,
 			viewreset: this._reset
 		};
 
@@ -126,8 +125,14 @@ M.ImageOverlay = L.ImageOverlay.extend({
 	},
 	_animateZoom: function (e) {
 		var scale = this._map.getZoomScale(e.zoom),
-			offset = this._map._latLngToNewLayerPoint(this._map.getBounds().getNorthWest(), e.zoom, e.center);
-		L.DomUtil.setTransform(this._image, offset, scale);
+		    translate = this._map.getPixelOrigin().add(this._location).multiplyBy(scale)
+		        .subtract(this._map._getNewPixelOrigin(e.center, e.zoom)).round();
+
+		if (L.Browser.any3d) {
+			L.DomUtil.setTransform(this._image, translate, scale);
+		} else {
+			L.DomUtil.setPosition(this._image, translate);
+		}
 	},
         _reset: function () {
 		var image = this._image,
@@ -415,10 +420,17 @@ M.MapMLLayer = L.Layer.extend({
                           size = map.getSize();
                           imageOverlays[i] = M.imageOverlay(src,location,size,/* angle */0,container);
                   }
-                  // TODO clearing the images here is awkward.  It should be done
-                  // only when the imageOverlays have been loaded, but not sure how to do that...
-                  layer._imageLayer.clearLayers();
-                  layer._imageLayer.initialize(imageOverlays);
+                  var layersToRemove = layer._imageLayer.getLayers();
+                  for (var i=0,last=imageOverlays.length-1;i < imageOverlays.length;i++) {
+                    layer._imageLayer.addLayer(imageOverlays[i]);
+                    if (i === last) {
+                      imageOverlays[i].on('load', function() {
+                        for (var i = 0;i < layersToRemove.length;i++) {
+                          layer._imageLayer.removeLayer(layersToRemove[i]);
+                        }
+                      });
+                    }
+                  }
               }
               var next = _parseLink('next',this.responseXML);
               if (next && requestCounter < layer.options.maxNext) {
