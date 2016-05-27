@@ -60,6 +60,27 @@ window.M = M;
     ],
     origin: [-2.8567784109255E7, 3.2567784109255E7]
   });
+    M.BCTILE = new L.Proj.CRS('EPSG:3005',
+  '+proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs ',
+  {
+    resolutions: [
+      9783.9400003175,
+      4891.969998835831,
+      2445.9849999470835,
+      1222.9925001058336,
+      611.4962500529168,
+      305.74812489416644,
+      152.8740625,
+      76.4370312632292,
+      38.2185156316146,
+      19.10925781316146,
+      9.554628905257811,
+      4.7773144526289055,
+      2.3886572265790367,
+      1.1943286131572264
+    ],
+    origin: [-1.32393E7, 1.98685E7]
+  });
     M.OSMTILE = L.CRS.EPSG3857;
 }());
 
@@ -171,8 +192,8 @@ M.MapMLLayer = L.Layer.extend({
     },
     onAdd: function (map) {
         this._map = map;
-        if (!this._mapml) {
-          this._mapml = M.mapMl(null,{
+        if (!this._mapmlvectors) {
+          this._mapmlvectors = M.mapMlFeatures(null,{
               opacity: this.options.opacity,
               onEachFeature: function(feature, layer) {
                 var type;
@@ -194,7 +215,7 @@ M.MapMLLayer = L.Layer.extend({
               }
             });
         }
-        map.addLayer(this._mapml);
+        map.addLayer(this._mapmlvectors);
         
         if (!this._imageLayer) {
             this._imageLayer = L.layerGroup();
@@ -228,8 +249,8 @@ M.MapMLLayer = L.Layer.extend({
         moveend: this._onMoveEnd};
     },
     onRemove: function (map) {
-        this._mapml.clearLayers();
-        map.removeLayer(this._mapml);
+        this._mapmlvectors.clearLayers();
+        map.removeLayer(this._mapmlvectors);
         map.removeLayer(this._tileLayer);
         map.removeLayer(this._imageLayer);
     },
@@ -346,7 +367,6 @@ M.MapMLLayer = L.Layer.extend({
                 var xml = this.responseXML,
                     serverExtent = xml.getElementsByTagName('extent')[0];
                 if (!serverExtent) {
-                    // manufacture an extent that won't lead to repeated requests to server
                     serverExtent = layer._synthesizeExtentFromMetadata(xml);
                 }
                 if (serverExtent) {
@@ -408,13 +428,16 @@ M.MapMLLayer = L.Layer.extend({
             if (this.responseXML) {
               if (requestCounter === 0) {
                 var serverExtent = this.responseXML.getElementsByTagName('extent')[0];
+                if (!serverExtent) {
+                    serverExtent = layer._synthesizeExtentFromMetadata(this.responseXML);
+                }
                   layer["_extent"] = serverExtent;
                   // the serverExtent should be removed if necessary from layer._el before by _initEl
                   layer._el.appendChild(document.importNode(serverExtent,true));
                   layer._parseProjectionAndLinks(this.responseXML, serverExtent, layer);
               }
               if (this.responseXML.getElementsByTagName('feature').length > 0) {
-                  layer._mapml.addData(this.responseXML);
+                  layer._mapmlvectors.addData(this.responseXML);
               }
               if (this.responseXML.getElementsByTagName('tile').length > 0) {
                   var tiles = document.createElement("tiles");
@@ -556,6 +579,7 @@ M.MapMLLayer = L.Layer.extend({
                 fakeExtent.appendChild(xmaxInput);
                 fakeExtent.appendChild(ymaxInput);
             }
+            fakeExtent.setAttribute("action",mapmlResponse.URL);
             return fakeExtent;
         }
     },
@@ -577,7 +601,7 @@ M.MapMLLayer = L.Layer.extend({
         var url =  this._calculateUrl();
         if (url) {
           this.href = url;
-          this._mapml.clearLayers();
+          this._mapmlvectors.clearLayers();
           this._initEl();
           this._getMapML(url);
         }
@@ -590,8 +614,8 @@ M.MapMLLayer = L.Layer.extend({
     },
     _reset: function() {
         this._initEl();
-        this._mapml.clearLayers();
-        //this._map.removeLayer(this._mapml);
+        this._mapmlvectors.clearLayers();
+        //this._map.removeLayer(this._mapmlvectors);
         return;
     },
     // return the LatLngBounds of the map unprojected such that the whole
@@ -873,7 +897,7 @@ M.mapMLTileLayer = function (url, options) {
  * M.MapML turns any MapML feature data into a Leaflet layer. Based on L.GeoJSON.
  */
 
-M.MapML = L.FeatureGroup.extend({
+M.MapMLlFeatures = L.FeatureGroup.extend({
 	initialize: function (mapml, options) {
 		L.setOptions(this, options);
 
@@ -922,7 +946,7 @@ M.MapML = L.FeatureGroup.extend({
 
 		if (options.filter && !options.filter(mapml)) { return; }
 
-		var layer = M.MapML.geometryToLayer(mapml, options.pointToLayer, options.coordsToLatLng, options);
+		var layer = M.MapMLlFeatures.geometryToLayer(mapml, options.pointToLayer, options.coordsToLatLng, options);
 		layer.feature = mapml.getElementsByTagName('properties')[0];
                 
                 layer.options.className = mapml.getAttribute('class') ? mapml.getAttribute('class') : null;
@@ -962,7 +986,7 @@ M.MapML = L.FeatureGroup.extend({
 	}
 });
 
-L.extend(M.MapML, {
+L.extend(M.MapMLlFeatures, {
 	geometryToLayer: function (mapml, pointToLayer, coordsToLatLng, vectorOptions) {
 		var geometry = mapml.tagName === 'feature' ? mapml.getElementsByTagName('geometry')[0] : mapml,
 		    coords = geometry.getElementsByTagName('coordinates'),
@@ -1091,8 +1115,8 @@ L.extend(M.MapML, {
 	}
 });
  
-M.mapMl = function (mapml, options) {
-	return new M.MapML(mapml, options);
+M.mapMlFeatures = function (mapml, options) {
+	return new M.MapMLlFeatures(mapml, options);
 };
 
 
