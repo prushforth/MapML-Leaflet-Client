@@ -19,9 +19,9 @@
       var cbmt =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/cbmt/'),
           cbmtlcc =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/cbmt'),
           toporama =  M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/toporama'),
-          osm =         M.mapMLLayer('http://geogratis.gc.ca/mapml/osm/',{zIndex:1}),
-          canvec1 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',{opacity: 0.2,zIndex:3}),
-          canvec2 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',{opacity: 0.5,zIndex:3}),
+          osm =         M.mapMLLayer('http://geogratis.gc.ca/mapml/osm/',null,{zIndex:1}),
+          canvec1 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',null,{opacity: 0.2,zIndex:3}),
+          canvec2 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',null,{opacity: 0.5,zIndex:3}),
           osmMap =    L.map('osmtile-map',{
                   center: [45.398043,-75.70683],
                   projection:'OSMTILE',
