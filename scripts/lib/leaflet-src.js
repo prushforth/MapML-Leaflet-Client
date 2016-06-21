@@ -1,5 +1,5 @@
 /*
- Leaflet 1.0-dev (46d2d6a), a JS library for interactive maps. http://leafletjs.com
+ Leaflet 1.0-dev, a JS library for interactive maps. http://leafletjs.com
  (c) 2010-2015 Vladimir Agafonkin, (c) 2010-2011 CloudMade
 */
 (function (window, document, undefined) {
@@ -922,9 +922,10 @@ L.DomUtil = {
 
 	getStyle: function (el, style) {
 
-		var value = el.style[style] || (el.currentStyle && el.currentStyle[style]);
+		var value = Polymer.dom(el).node.style[style] || (Polymer.dom(el).node.currentStyle && Polymer.dom(el).node.currentStyle[style]);
 
 		if ((!value || value === 'auto') && document.defaultView) {
+			Polymer.dom.flush();
 			var css = document.defaultView.getComputedStyle(el, null);
 			value = css ? css[style] : null;
 		}
@@ -935,50 +936,52 @@ L.DomUtil = {
 	create: function (tagName, className, container) {
 
 		var el = document.createElement(tagName);
-		el.className = className;
+		el.className = className || '';
 
 		if (container) {
-			container.appendChild(el);
+			Polymer.dom(container).appendChild(el);
 		}
 
 		return el;
 	},
 
+	// @function remove(el: HTMLElement)
+	// Removes `el` from its parent element
 	remove: function (el) {
-		var parent = el.parentNode;
+		var parent = Polymer.dom(el).parentNode;
 		if (parent) {
-			parent.removeChild(el);
+			Polymer.dom(parent).removeChild(el);
 		}
 	},
 
 	empty: function (el) {
-		while (el.firstChild) {
-			el.removeChild(el.firstChild);
+		while (Polymer.dom(el).firstChild) {
+			Polymer.dom(el).removeChild(Polymer.dom(el).firstChild);
 		}
 	},
 
 	toFront: function (el) {
-		el.parentNode.appendChild(el);
+		Polymer.dom(Polymer.dom(el).parentNode).appendChild(el);
 	},
 
 	toBack: function (el) {
-		var parent = el.parentNode;
-		parent.insertBefore(el, parent.firstChild);
+		var parent = Polymer.dom(el).parentNode;
+		Polymer.dom(parent).insertBefore(el, Polymer.dom(parent).firstChild);
 	},
 
 	hasClass: function (el, name) {
-		if (el.classList !== undefined) {
-			return el.classList.contains(name);
+		if (Polymer.dom(el).classList !== undefined) {
+			return Polymer.dom(el).classList.contains(name);
 		}
 		var className = L.DomUtil.getClass(el);
 		return className.length > 0 && new RegExp('(^|\\s)' + name + '(\\s|$)').test(className);
 	},
 
 	addClass: function (el, name) {
-		if (el.classList !== undefined) {
+		if (Polymer.dom(el).classList !== undefined) {
 			var classes = L.Util.splitWords(name);
 			for (var i = 0, len = classes.length; i < len; i++) {
-				el.classList.add(classes[i]);
+				Polymer.dom(el).classList.add(classes[i]);
 			}
 		} else if (!L.DomUtil.hasClass(el, name)) {
 			var className = L.DomUtil.getClass(el);
@@ -987,32 +990,32 @@ L.DomUtil = {
 	},
 
 	removeClass: function (el, name) {
-		if (el.classList !== undefined) {
-			el.classList.remove(name);
+		if (Polymer.dom(el).classList !== undefined) {
+			Polymer.dom(el).classList.remove(name);
 		} else {
 			L.DomUtil.setClass(el, L.Util.trim((' ' + L.DomUtil.getClass(el) + ' ').replace(' ' + name + ' ', ' ')));
 		}
 	},
 
 	setClass: function (el, name) {
-		if (el.className.baseVal === undefined) {
-			el.className = name;
+		if (Polymer.dom(el).classList.node.className.baseVal === undefined) {
+			Polymer.dom(el).classList.node.className = name;
 		} else {
 			// in case of SVG element
-			el.className.baseVal = name;
+			Polymer.dom(el).classList.node.className.baseVal = name;
 		}
 	},
 
 	getClass: function (el) {
-		return el.className.baseVal === undefined ? el.className : el.className.baseVal;
+		return Polymer.dom(el).classList.node.className.baseVal === undefined ? Polymer.dom(el).classList.node.className : Polymer.dom(el).classList.node.className.baseVal;
 	},
 
 	setOpacity: function (el, value) {
 
-		if ('opacity' in el.style) {
-			el.style.opacity = value;
+		if ('opacity' in Polymer.dom(el).node.style) {
+			Polymer.dom(el).node.style.opacity = value;
 
-		} else if ('filter' in el.style) {
+		} else if ('filter' in Polymer.dom(el).node.style) {
 			L.DomUtil._setOpacityIE(el, value);
 		}
 	},
@@ -1023,7 +1026,7 @@ L.DomUtil = {
 
 		// filters collection throws an error if we try to retrieve a filter that doesn't exist
 		try {
-			filter = el.filters.item(filterName);
+			filter = Polymer.dom(el).filters.item(filterName);
 		} catch (e) {
 			// don't set opacity to 1 if we haven't already set an opacity,
 			// it isn't needed and breaks transparent pngs.
@@ -1036,7 +1039,7 @@ L.DomUtil = {
 			filter.Enabled = (value !== 100);
 			filter.Opacity = value;
 		} else {
-			el.style.filter += ' progid:' + filterName + '(opacity=' + value + ')';
+			Polymer.dom(el).node.style.filter += ' progid:' + filterName + '(opacity=' + value + ')';
 		}
 	},
 
@@ -1055,21 +1058,24 @@ L.DomUtil = {
 	setTransform: function (el, offset, scale) {
 		var pos = offset || new L.Point(0, 0);
 
-		el.style[L.DomUtil.TRANSFORM] =
-			'translate3d(' + pos.x + 'px,' + pos.y + 'px' + ',0)' + (scale ? ' scale(' + scale + ')' : '');
+		Polymer.dom(el).node.style[L.DomUtil.TRANSFORM] =
+			(L.Browser.ie3d ?
+				'translate(' + pos.x + 'px,' + pos.y + 'px)' :
+				'translate3d(' + pos.x + 'px,' + pos.y + 'px,0)') +
+			(scale ? ' scale(' + scale + ')' : '');
 	},
 
 	setPosition: function (el, point) { // (HTMLElement, Point[, Boolean])
 
 		/*eslint-disable */
-		el._leaflet_pos = point;
+		Polymer.dom(el)._leaflet_pos = point;
 		/*eslint-enable */
 
 		if (L.Browser.any3d) {
 			L.DomUtil.setTransform(el, point);
 		} else {
-			el.style.left = point.x + 'px';
-			el.style.top = point.y + 'px';
+			Polymer.dom(el).node.style.left = point.x + 'px';
+			Polymer.dom(el).node.style.top = point.y + 'px';
 		}
 	},
 
@@ -1077,7 +1083,7 @@ L.DomUtil = {
 		// this method is only used for elements previously positioned using setPosition,
 		// so it's safe to cache the position for performance
 
-		return el._leaflet_pos;
+		return Polymer.dom(el)._leaflet_pos || new L.Point(0, 0);
 	}
 };
 
@@ -1134,19 +1140,19 @@ L.DomUtil = {
 	};
 
 	L.DomUtil.preventOutline = function (element) {
-		while (element.tabIndex === -1) {
-			element = element.parentNode;
+		while (Polymer.dom(element).node.tabIndex === -1) {
+			element = Polymer.dom(element).parentNode;
 		}
-		if (!element) { return; }
+		if (!element || !Polymer.dom(element).node.style) { return; }
 		L.DomUtil.restoreOutline();
 		this._outlineElement = element;
-		this._outlineStyle = element.style.outline;
-		element.style.outline = 'none';
+		this._outlineStyle = Polymer.dom(element).node.style.outline;
+		Polymer.dom(element).node.style.outline = 'none';
 		L.DomEvent.on(window, 'keydown', L.DomUtil.restoreOutline, this);
 	};
 	L.DomUtil.restoreOutline = function () {
 		if (!this._outlineElement) { return; }
-		this._outlineElement.style.outline = this._outlineStyle;
+		Polymer.dom(this._outlineElement).node.style.outline = this._outlineStyle;
 		delete this._outlineElement;
 		delete this._outlineStyle;
 		L.DomEvent.off(window, 'keydown', L.DomUtil.restoreOutline, this);
@@ -2861,7 +2867,7 @@ L.GridLayer = L.Layer.extend({
 			this._updateOpacity();
 		}
 
-		this.getPane().appendChild(this._container);
+		Polymer.dom(this.getPane()).appendChild(this._container);
 	},
 
 	_updateLevels: function () {
@@ -3142,7 +3148,7 @@ L.GridLayer = L.Layer.extend({
 				this._addTile(queue[i], fragment);
 			}
 
-			this._level.el.appendChild(fragment);
+			Polymer.dom(this._level.el).appendChild(fragment);
 		}
 	},
 
@@ -3257,7 +3263,7 @@ L.GridLayer = L.Layer.extend({
 			current: true
 		};
 
-		container.appendChild(tile);
+		Polymer.dom(container).appendChild(tile);
 		this.fire('tileloadstart', {
 			tile: tile,
 			coords: coords
@@ -3618,7 +3624,7 @@ L.ImageOverlay = L.Layer.extend({
 			this.addInteractiveTarget(this._image);
 		}
 
-		this.getPane().appendChild(this._image);
+		Polymer.dom(this.getPane()).appendChild(this._image);
 		this._reset();
 	},
 
@@ -4031,10 +4037,10 @@ L.Marker = L.Layer.extend({
 
 
 		if (addIcon) {
-			this.getPane().appendChild(this._icon);
+			Polymer.dom(this.getPane()).appendChild(this._icon);
 		}
 		if (newShadow && addShadow) {
-			this.getPane('shadowPane').appendChild(this._shadow);
+			Polymer.dom(this.getPane('shadowPane')).appendChild(this._shadow);
 		}
 	},
 
@@ -4137,6 +4143,8 @@ L.marker = function (latlng, options) {
 };
 
 
+/* global Polymer */
+/* eslint no-undef: "error" */
 /*
  * L.DivIcon is a lightweight HTML-based icon class (as opposed to the image-based L.Icon)
  * to use with L.Marker.
@@ -4159,10 +4167,11 @@ L.DivIcon = L.Icon.extend({
 		var div = (oldIcon && oldIcon.tagName === 'DIV') ? oldIcon : document.createElement('div'),
 		    options = this.options;
 
-		div.innerHTML = options.html !== false ? options.html : '';
+		Polymer.dom(div).innerHTML = options.html !== false ? options.html : '';
 
 		if (options.bgPos) {
-			div.style.backgroundPosition = (-options.bgPos.x) + 'px ' + (-options.bgPos.y) + 'px';
+			var bgPos = L.point(options.bgPos);
+			Polymer.dom(div).style.backgroundPosition = (-bgPos.x) + 'px ' + (-bgPos.y) + 'px';
 		}
 		this._setIconStyles(div, 'icon');
 
@@ -4227,7 +4236,7 @@ L.Popup = L.Layer.extend({
 		}
 
 		clearTimeout(this._removeTimeout);
-		this.getPane().appendChild(this._container);
+		Polymer.dom(this.getPane()).appendChild(this._container);
 		this.update();
 
 		if (map._fadeAnimated) {
@@ -4363,12 +4372,12 @@ L.Popup = L.Layer.extend({
 		var content = (typeof this._content === 'function') ? this._content(this._source || this) : this._content;
 
 		if (typeof content === 'string') {
-			node.innerHTML = content;
+			Polymer.dom(node).innerHTML = content;
 		} else {
-			while (node.hasChildNodes()) {
-				node.removeChild(node.firstChild);
+			while (Polymer.dom(node).hasChildNodes()) {
+				Polymer.dom(node).removeChild(Polymer.dom(node).firstChild);
 			}
-			node.appendChild(content);
+			Polymer.dom(node).appendChild(content);
 		}
 		this.fire('contentupdate');
 	},
@@ -4883,7 +4892,7 @@ L.Renderer = L.Layer.extend({
 			}
 		}
 
-		this.getPane().appendChild(this._container);
+		Polymer.dom(this.getPane()).appendChild(this._container);
 		this._update();
 	},
 
@@ -5849,10 +5858,10 @@ L.SVG = L.Renderer.extend({
 		this._container = L.SVG.create('svg');
 
 		// makes it possible to click through svg root; we'll reset it back in individual paths
-		this._container.setAttribute('pointer-events', 'none');
+		Polymer.dom(this._container).setAttribute('pointer-events', 'none');
 
 		this._rootGroup = L.SVG.create('g');
-		this._container.appendChild(this._rootGroup);
+		Polymer.dom(this._container).appendChild(this._rootGroup);
 	},
 
 	_update: function () {
@@ -5867,13 +5876,13 @@ L.SVG = L.Renderer.extend({
 		// set size of svg-container if changed
 		if (!this._svgSize || !this._svgSize.equals(size)) {
 			this._svgSize = size;
-			container.setAttribute('width', size.x);
-			container.setAttribute('height', size.y);
+			Polymer.dom(container).setAttribute('width', size.x);
+			Polymer.dom(container).setAttribute('height', size.y);
 		}
 
 		// movement: update container viewBox so that we don't have to change coordinates of individual layers
 		L.DomUtil.setPosition(container, b.min);
-		container.setAttribute('viewBox', [b.min.x, b.min.y, size.x, size.y].join(' '));
+		Polymer.dom(container).setAttribute('viewBox', [b.min.x, b.min.y, size.x, size.y].join(' '));
 	},
 
 	// methods below are called by vector layers implementations
@@ -5893,7 +5902,7 @@ L.SVG = L.Renderer.extend({
 	},
 
 	_addPath: function (layer) {
-		this._rootGroup.appendChild(layer._path);
+		Polymer.dom(this._rootGroup).appendChild(layer._path);
 		layer.addInteractiveTarget(layer._path);
 	},
 
@@ -5914,36 +5923,36 @@ L.SVG = L.Renderer.extend({
 		if (!path) { return; }
 
 		if (options.stroke) {
-			path.setAttribute('stroke', options.color);
-			path.setAttribute('stroke-opacity', options.opacity);
-			path.setAttribute('stroke-width', options.weight);
-			path.setAttribute('stroke-linecap', options.lineCap);
-			path.setAttribute('stroke-linejoin', options.lineJoin);
+			Polymer.dom(path).setAttribute('stroke', options.color);
+			Polymer.dom(path).setAttribute('stroke-opacity', options.opacity);
+			Polymer.dom(path).setAttribute('stroke-width', options.weight);
+			Polymer.dom(path).setAttribute('stroke-linecap', options.lineCap);
+			Polymer.dom(path).setAttribute('stroke-linejoin', options.lineJoin);
 
 			if (options.dashArray) {
-				path.setAttribute('stroke-dasharray', options.dashArray);
+				Polymer.dom(path).setAttribute('stroke-dasharray', options.dashArray);
 			} else {
-				path.removeAttribute('stroke-dasharray');
+				Polymer.dom(path).removeAttribute('stroke-dasharray');
 			}
 
 			if (options.dashOffset) {
-				path.setAttribute('stroke-dashoffset', options.dashOffset);
+				Polymer.dom(path).setAttribute('stroke-dashoffset', options.dashOffset);
 			} else {
-				path.removeAttribute('stroke-dashoffset');
+				Polymer.dom(path).removeAttribute('stroke-dashoffset');
 			}
 		} else {
-			path.setAttribute('stroke', 'none');
+			Polymer.dom(path).setAttribute('stroke', 'none');
 		}
 
 		if (options.fill) {
-			path.setAttribute('fill', options.fillColor || options.color);
-			path.setAttribute('fill-opacity', options.fillOpacity);
-			path.setAttribute('fill-rule', options.fillRule || 'evenodd');
+			Polymer.dom(path).setAttribute('fill', options.fillColor || options.color);
+			Polymer.dom(path).setAttribute('fill-opacity', options.fillOpacity);
+			Polymer.dom(path).setAttribute('fill-rule', options.fillRule || 'evenodd');
 		} else {
-			path.setAttribute('fill', 'none');
+			Polymer.dom(path).setAttribute('fill', 'none');
 		}
 
-		path.setAttribute('pointer-events', options.pointerEvents || (options.interactive ? 'visiblePainted' : 'none'));
+		Polymer.dom(path).setAttribute('pointer-events', options.pointerEvents || (options.interactive ? 'visiblePainted' : 'none'));
 	},
 
 	_updatePoly: function (layer, closed) {
@@ -5966,7 +5975,7 @@ L.SVG = L.Renderer.extend({
 	},
 
 	_setPath: function (layer, path) {
-		layer._path.setAttribute('d', path);
+		Polymer.dom(layer._path).setAttribute('d', path);
 	},
 
 	// SVG does not have the concept of zIndex so we resort to changing the DOM order of elements
@@ -6014,6 +6023,8 @@ L.svg = function (options) {
 };
 
 
+/* global Polymer */
+/* eslint no-undef: "error" */
 /*
  * Vector rendering for IE7-8 through VML.
  * Thanks to Dmitry Baranovsky and his Raphael library for inspiration!
@@ -6022,12 +6033,12 @@ L.svg = function (options) {
 L.Browser.vml = !L.Browser.svg && (function () {
 	try {
 		var div = document.createElement('div');
-		div.innerHTML = '<v:shape adj="1"/>';
+		Polymer.dom(div).innerHTML = '<v:shape adj="1"/>';
 
-		var shape = div.firstChild;
-		shape.style.behavior = 'url(#default#VML)';
+		var shape = Polymer.dom(div).firstChild;
+		Polymer.dom(shape).node.style.behavior = 'url(#default#VML)';
 
-		return shape && (typeof shape.adj === 'object');
+		return shape && (typeof Polymer.dom(shape).node.adj === 'object');
 
 	} catch (e) {
 		return false;
@@ -6054,14 +6065,14 @@ L.SVG.include(!L.Browser.vml ? {} : {
 		container.coordsize = '1 1';
 
 		layer._path = L.SVG.create('path');
-		container.appendChild(layer._path);
+		Polymer.dom(container).appendChild(layer._path);
 
 		this._updateStyle(layer);
 	},
 
 	_addPath: function (layer) {
 		var container = layer._container;
-		this._container.appendChild(container);
+		Polymer.dom(this._container).appendChild(container);
 
 		if (layer.options.interactive) {
 			layer.addInteractiveTarget(container);
@@ -6086,7 +6097,7 @@ L.SVG.include(!L.Browser.vml ? {} : {
 		if (options.stroke) {
 			if (!stroke) {
 				stroke = layer._stroke = L.SVG.create('stroke');
-				container.appendChild(stroke);
+                                Polymer.dom(container).appendChild(stroke);
 			}
 			stroke.weight = options.weight + 'px';
 			stroke.color = options.color;
@@ -6103,20 +6114,20 @@ L.SVG.include(!L.Browser.vml ? {} : {
 			stroke.joinstyle = options.lineJoin;
 
 		} else if (stroke) {
-			container.removeChild(stroke);
+			Polymer.dom(container).removeChild(stroke);
 			layer._stroke = null;
 		}
 
 		if (options.fill) {
 			if (!fill) {
 				fill = layer._fill = L.SVG.create('fill');
-				container.appendChild(fill);
+				Polymer.dom(container).appendChild(fill);
 			}
 			fill.color = options.fillColor || options.color;
 			fill.opacity = options.fillOpacity;
 
 		} else if (fill) {
-			container.removeChild(fill);
+			Polymer.dom(container).removeChild(fill);
 			layer._fill = null;
 		}
 	},
@@ -8285,9 +8296,9 @@ L.Control = L.Class.extend({
 		L.DomUtil.addClass(container, 'leaflet-control');
 
 		if (pos.indexOf('bottom') !== -1) {
-			corner.insertBefore(container, corner.firstChild);
+			Polymer.dom(corner).insertBefore(container, Polymer.dom(corner).firstChild);
 		} else {
-			corner.appendChild(container);
+			Polymer.dom(corner).appendChild(container);
 		}
 
 		return this;
@@ -8359,6 +8370,8 @@ L.Map.include({
 });
 
 
+/* global Polymer */
+/* eslint no-undef: "error" */
 /*
  * L.Control.Zoom is used for the default zoom buttons on the map.
  */
@@ -8418,9 +8431,9 @@ L.Control.Zoom = L.Control.extend({
 
 	_createButton: function (html, title, className, container, fn) {
 		var link = L.DomUtil.create('a', className, container);
-		link.innerHTML = html;
-		link.href = '#';
-		link.title = title;
+		Polymer.dom(link).innerHTML = html;
+		Polymer.dom(link).node.href = '#';
+		Polymer.dom(link).node.title = title;
 
 		L.DomEvent
 		    .on(link, 'mousedown dblclick', L.DomEvent.stopPropagation)
@@ -8463,6 +8476,8 @@ L.control.zoom = function (options) {
 };
 
 
+/* global Polymer */
+/* eslint no-undef: "error" */
 /*
  * L.Control.Attribution is used for displaying attribution on the map (added by default).
  */
@@ -8547,7 +8562,7 @@ L.Control.Attribution = L.Control.extend({
 			prefixAndAttribs.push(attribs.join(', '));
 		}
 
-		this._container.innerHTML = prefixAndAttribs.join(' | ');
+		Polymer.dom(this._container).innerHTML = prefixAndAttribs.join(' | ');
 	}
 });
 
@@ -8566,6 +8581,8 @@ L.control.attribution = function (options) {
 };
 
 
+/* global Polymer */
+/* eslint no-undef: "error" */
 /*
  * L.Control.Scale is used for displaying metric/imperial scale on the map.
  */
@@ -8648,8 +8665,8 @@ L.Control.Scale = L.Control.extend({
 	},
 
 	_updateScale: function (scale, text, ratio) {
-		scale.style.width = Math.round(this.options.maxWidth * ratio) + 'px';
-		scale.innerHTML = text;
+		Polymer.dom(scale).node.style.width = Math.round(this.options.maxWidth * ratio) + 'px';
+		Polymer.dom(scale).innerHTML = text;
 	},
 
 	_getRoundNum: function (num) {
@@ -8774,7 +8791,7 @@ L.Control.Layers = L.Control.extend({
 		this._separator = L.DomUtil.create('div', className + '-separator', form);
 		this._overlaysList = L.DomUtil.create('div', className + '-overlays', form);
 
-		container.appendChild(form);
+		Polymer.dom(container).appendChild(form);
 	},
 
 	_addLayer: function (layer, name, overlay) {
@@ -8868,18 +8885,18 @@ L.Control.Layers = L.Control.extend({
 		L.DomEvent.on(input, 'click', this._onInputClick, this);
 
 		var name = document.createElement('span');
-		name.innerHTML = ' ' + obj.name;
+		Polymer.dom(name).innerHTML = ' ' + obj.name;
 
 		// Helps from preventing layer control flicker when checkboxes are disabled
 		// https://github.com/Leaflet/Leaflet/issues/2771
 		var holder = document.createElement('div');
 
-		label.appendChild(holder);
-		holder.appendChild(input);
-		holder.appendChild(name);
+		Polymer.dom(label).appendChild(holder);
+		Polymer.dom(holder).appendChild(input);
+		Polymer.dom(holder).appendChild(name);
 
 		var container = obj.overlay ? this._overlaysList : this._baseLayersList;
-		container.appendChild(label);
+		Polymer.dom(container).appendChild(label);
 
 		return label;
 	},
@@ -9113,6 +9130,8 @@ L.Map.include({
 });
 
 
+/* global Polymer */
+/* eslint no-undef: "error" */
 /*
  * Extends L.Map to handle zoom animations.
  */
@@ -9146,7 +9165,7 @@ L.Map.include(!zoomAnimated ? {} : {
 	_createAnimProxy: function () {
 
 		var proxy = this._proxy = L.DomUtil.create('div', 'leaflet-proxy leaflet-zoom-animated');
-		this._panes.mapPane.appendChild(proxy);
+		Polymer.dom(this._panes.mapPane).appendChild(proxy);
 
 		this.on('zoomanim', function (e) {
 			var prop = L.DomUtil.TRANSFORM,
