@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8">
     <title>MapML Leaflet client</title>
-    <link rel="stylesheet" href="scripts/lib/leaflet.css" />
-    <script src="scripts/lib/leaflet-src.js"></script>
-    <script src="scripts/lib/proj4-compressed.js"></script> 
-    <script src="scripts/lib/proj4leaflet.js"></script>
-    <script src="scripts/mapml.js"></script>
-    <script src="scripts/URI.js"></script>
+    <link rel="stylesheet" href="bower_components/mapml-leaflet/leaflet.css" />
+    <script src="bower_components/mapml-leaflet/leaflet-src.js"></script>
+    <script src="bower_components/proj4leaflet/lib/proj4-compressed.js"></script> 
+    <script src="bower_components/proj4leaflet/src/proj4leaflet.js"></script>
+    <script src="src/mapml.js"></script>
+    <script src="src/URI.js"></script>
     <script src="bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
     <link rel="import" href="bower_components/polymer/polymer.html">
   </head>
@@ -17,7 +17,7 @@
     <div id="osmtile-map" style="height: 300px;width: 40%;"></div>
     <div id="cbmtile-map" style="height: 300px;width: 40%;"></div>
     <div id="apstile-map" style="height: 300px;width: 40%;"></div>
-      <script>
+    <script async>
       var cbmt =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/cbmt/'),
           cbmtlcc =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/cbmt'),
           toporama =  M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/toporama'),
