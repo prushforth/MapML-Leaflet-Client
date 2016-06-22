@@ -1,0 +1,33 @@
+{
+  "name": "mapml-leaflet-client",
+  "description": "Internal support library for the web-map-custom-element component",
+  "main": "index.html",
+  "authors": [
+    "Maps for HTML Community Group"
+  ],
+  "license": "W3C SOFTWARE AND DOCUMENT NOTICE AND LICENSE",
+  "keywords": [
+    "framework",
+    "web",
+    "html5",
+    "maps",
+    "custom element",
+    "javascript",
+    "web maps",
+    "component",
+    "polyfill"
+  ],
+  "homepage": "https://github.com/Maps4HTML/MapML-Leaflet-Client",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": { 
+    "mapml-leaflet": "git://github.com/Maps4HTML/Leaflet/#MapML-Leaflet-v1.0.0-beta.1",
+    "polymer": "^1.5.0",
+    "proj4Leaflet": "proj4leaflet#1.0.0-beta.2"
+  }
+}
