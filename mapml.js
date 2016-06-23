@@ -1,4 +1,161 @@
-/* global L, Node */
+/*
+ * Copyright © 2007 Dominic Mitchell
+ * 
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ * Neither the name of the Dominic Mitchell nor the names of its contributors
+ * may be used to endorse or promote products derived from this software
+ * without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+/*
+ * An URI datatype.  Based upon examples in RFC3986.
+ *
+ * TODO %-escaping
+ * TODO split apart authority
+ * TODO split apart query_string (on demand, anyway)
+ *
+ * @(#) $Id$
+ */
+ 
+// Constructor for the URI object.  Parse a string into its components.
+function URI(str) {
+    if (!str) str = "";
+    // Based on the regex in RFC2396 Appendix B.
+    var parser = /^(?:([^:\/?\#]+):)?(?:\/\/([^\/?\#]*))?([^?\#]*)(?:\?([^\#]*))?(?:\#(.*))?/;
+    var result = str.match(parser);
+    this.scheme    = result[1] || null;
+    this.authority = result[2] || null;
+    this.path      = result[3] || null;
+    this.query     = result[4] || null;
+    this.fragment  = result[5] || null;
+}
+
+// Restore the URI to it's stringy glory.
+URI.prototype.toString = function () {
+    var str = "";
+    if (this.scheme) {
+        str += this.scheme + ":";
+    }
+    if (this.authority) {
+        str += "//" + this.authority;
+    }
+    if (this.path) {
+        str += this.path;
+    }
+    if (this.query) {
+        str += "?" + this.query;
+    }
+    if (this.fragment) {
+        str += "#" + this.fragment;
+    }
+    return str;
+};
+
+// Introduce a new scope to define some private helper functions.
+(function () {
+    // RFC3986 §5.2.3 (Merge Paths)
+    function merge(base, rel_path) {
+        var dirname = /^(.*)\//;
+        if (base.authority && !base.path) {
+            return "/" + rel_path;
+        }
+        else {
+            return base.path.match(dirname)[0] + rel_path;
+        }
+    }
+
+    // Match two path segments, where the second is ".." and the first must
+    // not be "..".
+    var DoubleDot = /\/((?!\.\.\/)[^\/]*)\/\.\.\//;
+
+    function remove_dot_segments(path) {
+        if (!path) return "";
+        // Remove any single dots
+        var newpath = path.replace(/\/\.\//g, '/');
+        // Remove any trailing single dots.
+        newpath = newpath.replace(/\/\.$/, '/');
+        // Remove any double dots and the path previous.  NB: We can't use
+        // the "g", modifier because we are changing the string that we're
+        // matching over.
+        while (newpath.match(DoubleDot)) {
+            newpath = newpath.replace(DoubleDot, '/');
+        }
+        // Remove any trailing double dots.
+        newpath = newpath.replace(/\/([^\/]*)\/\.\.$/, '/');
+        // If there are any remaining double dot bits, then they're wrong
+        // and must be nuked.  Again, we can't use the g modifier.
+        while (newpath.match(/\/\.\.\//)) {
+            newpath = newpath.replace(/\/\.\.\//, '/');
+        }
+        return newpath;
+    }
+
+    // RFC3986 §5.2.2. Transform References;
+    URI.prototype.resolve = function (base) {
+        var target = new URI();
+        if (this.scheme) {
+            target.scheme    = this.scheme;
+            target.authority = this.authority;
+            target.path      = remove_dot_segments(this.path);
+            target.query     = this.query;
+        }
+        else {
+            if (this.authority) {
+                target.authority = this.authority;
+                target.path      = remove_dot_segments(this.path);
+                target.query     = this.query;
+            }        
+            else {
+                // XXX Original spec says "if defined and empty"…;
+                if (!this.path) {
+                    target.path = base.path;
+                    if (this.query) {
+                        target.query = this.query;
+                    }
+                    else {
+                        target.query = base.query;
+                    }
+                }
+                else {
+                    if (this.path.charAt(0) === '/') {
+                        target.path = remove_dot_segments(this.path);
+                    } else {
+                        target.path = merge(base, this.path);
+                        target.path = remove_dot_segments(target.path);
+                    }
+                    target.query = this.query;
+                }
+                target.authority = base.authority;
+            }
+            target.scheme = base.scheme;
+        }
+
+        target.fragment = this.fragment;
+
+        return target;
+    };
+})();
+;/* global L, Node */
 (function (window, document, undefined) {
   
 var M = {};
@@ -286,7 +443,8 @@ M.MapMLLayer = L.Layer.extend({
         
         if (!this._extent) return;
         var zoom = map.getZoom(), projection = map.options.projection,
-            projecting = (projection !== this._extent.querySelector('[type=projection]').getAttribute('value'));
+            projecting = (projection !== this._extent.querySelector('[type=projection]').getAttribute('value')),
+            p;
         
         var xmin,ymin,xmax,ymax,v1,v2,extentZoomValue;
             
@@ -305,8 +463,8 @@ M.MapMLLayer = L.Layer.extend({
         // WGS84 can be converted to Tiled CRS units
         if (projecting) {
             //project and scale to M[projection] from WGS84
-            var p = M[projection],
-            corners = [
+            p = M[projection];
+            var corners = [
               p.latLngToPoint(L.latLng([ymin,xmin]),zoom),
               p.latLngToPoint(L.latLng([ymax,xmax]),zoom), 
               p.latLngToPoint(L.latLng([ymin,xmin]),zoom), 
@@ -318,7 +476,7 @@ M.MapMLLayer = L.Layer.extend({
             extentZoomValue = parseInt(this._extent.querySelector('[type=zoom]').getAttribute('value'));
             if (extentZoomValue !== zoom) {
                 // convert the extent bounds to corresponding bounds at the current map zoom
-                var p = M[projection];
+                p = M[projection];
                 return L.bounds(
                     p.latLngToPoint(p.pointToLatLng(L.point(xmin,ymin),extentZoomValue),zoom),
                     p.latLngToPoint(p.pointToLatLng(L.point(xmax,ymax),extentZoomValue),zoom));
@@ -387,7 +545,7 @@ M.MapMLLayer = L.Layer.extend({
             xhr.setRequestHeader("Accept",M.mime);
             xhr.overrideMimeType("text/xml");
             xhr.send();
-        };
+        }
         function _processInitialExtent(content) {
             var mapml = this.responseXML || content;
             if (mapml) {
@@ -397,11 +555,11 @@ M.MapMLLayer = L.Layer.extend({
                     // the mapml resource does not have a (complete) extent form, save
                     // its content if any so we don't have to revisit the server, ever.
                     if (mapml.querySelector('feature,image,tile')) {
-                        layer["_content"] = mapml;
+                        layer._content = mapml;
                     }
                 }
                 layer._parseLicenseAndLegend(mapml, layer);
-                layer["_extent"] = serverExtent;
+                layer._extent = serverExtent;
                 // BUG https://github.com/Maps4HTML/Web-Map-Custom-Element/issues/29
                 //layer._el.appendChild(document.importNode(serverExtent,true));
                 if (layer._map) {
@@ -417,7 +575,7 @@ M.MapMLLayer = L.Layer.extend({
                 layer.error = true;
             }
             layer.fire('extentload', layer, false);
-        };
+        }
     },
     _getMapML: function(url) {
         var layer = this;
@@ -457,16 +615,17 @@ M.MapMLLayer = L.Layer.extend({
             xhr.setRequestHeader("Accept",M.mime+";projection="+layer.options.projection+";zoom="+layer.zoom);
             xhr.overrideMimeType("text/xml");
             xhr.send();
-        };
+        }
         function _processMapMLFeedResponse(content) {
-            var mapml = this.responseXML || content;
+            var mapml = this.responseXML || content,
+                i;
             if (mapml) {
               if (requestCounter === 0) {
                 var serverExtent = mapml.querySelector('extent');
                 if (!serverExtent) {
                     serverExtent = layer._synthesizeExtent(mapml);
                 }
-                  layer["_extent"] = serverExtent;
+                  layer._extent = serverExtent;
                   // the serverExtent should be removed if necessary from layer._el before by _initEl
                   // BUG https://github.com/Maps4HTML/Web-Map-Custom-Element/issues/29
                   //layer._el.appendChild(document.importNode(serverExtent,true));
@@ -478,7 +637,7 @@ M.MapMLLayer = L.Layer.extend({
               if (mapml.querySelector('tile')) {
                   var tiles = document.createElement("tiles");
                   var newTiles = mapml.getElementsByTagName('tile');
-                  for (var i=0;i<newTiles.length;i++) {
+                  for (i=0;i<newTiles.length;i++) {
                       Polymer.dom(tiles).appendChild(document.importNode(newTiles[i], true));
                   }
                   layer._el.appendChild(tiles);
@@ -489,7 +648,7 @@ M.MapMLLayer = L.Layer.extend({
                       // need a reference to the _imageLayer container element to pass to children
                       // so they can append the img element they create to it.
                       container = layer._el.parentElement;
-                  for (var i=0;i<images.length;i++) {
+                  for (i=0;i<images.length;i++) {
                       var image = images[i],
                           src = image.getAttribute('src'),
                           map = layer._map,
@@ -504,7 +663,8 @@ M.MapMLLayer = L.Layer.extend({
                           imageOverlays[i] = M.imageOverlay(src,location,size,/* angle */0,container);
                   }
                   var layersToRemove = layer._imageLayer.getLayers();
-                  for (var i=0,last=imageOverlays.length-1;i < imageOverlays.length;i++) {
+                  var last=imageOverlays.length-1; 
+                  for (i=0;i < imageOverlays.length;i++) {
                     layer._imageLayer.addLayer(imageOverlays[i]);
                     if (i === last) {
                       imageOverlays[i].on('load', function() {
@@ -526,7 +686,7 @@ M.MapMLLayer = L.Layer.extend({
                   layer.fire('extentload', layer, true);
               }
             }
-        };
+        }
         function _parseLink(rel, xml) {
             // depends on js-uri http://code.google.com/p/js-uri/ 
             // would be greate to depend on the URL standard and not a library
@@ -536,7 +696,7 @@ M.MapMLLayer = L.Layer.extend({
                 link = xml.querySelector('link[rel='+rel+']'),
                 relLink = link?new URI(link.getAttribute('href')).resolve(baseUri):null;
             return relLink;
-        };
+        }
     },
     _createExtent: function () {
     
@@ -668,13 +828,14 @@ M.MapMLLayer = L.Layer.extend({
         var metaZoom = mapml.querySelectorAll('meta[name=zoom]')[0],
             metaExtent = mapml.querySelector('meta[name=extent]'),
             metaProjection = mapml.querySelector('meta[name=projection]'),
-            proj = metaProjection ? metaProjection.getAttribute('content'): 'WGS84', bounds;
+            proj = metaProjection ? metaProjection.getAttribute('content'): 'WGS84',
+            i,expressions,bounds,zmin,zmax,xmin,ymin,xmax,ymax,expr,lhs,rhs;
         if (metaZoom) {
-            var expressions = metaZoom.getAttribute('content').split(','),
-                zmin,zmax;
-            for (var i=0;i<expressions.length;i++) {
-              var expr = expressions[i].split('='),
-                      lhs = expr[0],rhs=expr[1];
+            expressions = metaZoom.getAttribute('content').split(',');
+            for (i=0;i<expressions.length;i++) {
+              expr = expressions[i].split('=');
+              lhs = expr[0];
+              rhs=expr[1];
               if (lhs === 'min') {
                 zmin = parseInt(rhs);
               }
@@ -684,10 +845,11 @@ M.MapMLLayer = L.Layer.extend({
             }
         }  
         if (metaExtent) {
-            var expressions = metaExtent.getAttribute('content').split(','),xmin,ymin,xmax,ymax;
-            for (var i=0;i<expressions.length;i++) {
-              var expr = expressions[i].split('='),
-                      lhs = expr[0],rhs=expr[1];
+            expressions = metaExtent.getAttribute('content').split(',');
+            for (i=0;i<expressions.length;i++) {
+              expr = expressions[i].split('=');
+              lhs = expr[0];
+              rhs=expr[1];
               if (lhs === 'xmin') {
                 xmin = parseFloat(rhs);
               }
@@ -729,7 +891,7 @@ M.MapMLLayer = L.Layer.extend({
         L.setOptions(layer,{attribution:attText});
         var legendLink = xml.querySelector('link[rel=legend]');
         if (legendLink) {
-          layer["_legendUrl"] = legendLink.getAttribute('href');
+          layer._legendUrl = legendLink.getAttribute('href');
         }
     },
     _onMoveEnd: function () {
@@ -771,12 +933,12 @@ M.MapMLLayer = L.Layer.extend({
     // map is covered, not just a band defined by the projected map bounds.
     _getUnprojectedMapLatLngBounds: function(map) {
       
-          map = map||this._map, 
-                  origin = map.getPixelOrigin(), 
-                  bounds = map.getPixelBounds(),
-          nw = map.unproject(origin),
-          sw = map.unproject(bounds.getBottomLeft()),
-          ne = map.unproject(bounds.getTopRight()),
+          map = map||this._map; 
+          origin = map.getPixelOrigin();
+          bounds = map.getPixelBounds();
+          nw = map.unproject(origin);
+          sw = map.unproject(bounds.getBottomLeft());
+          ne = map.unproject(bounds.getTopRight());
           se = map.unproject(origin.add(map.getSize()));
           return L.latLngBounds(sw,ne).extend(se).extend(nw);
     },
@@ -909,7 +1071,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
              * 'stack' to form a composite image.  Such URLs would necessarily
              * be different, so that should be permitted by the grouping.
              * */
-            if (!tiles.length) { return; };
+            if (!tiles.length) { return; }
             this._addTiles(tiles);
         },
         _groupTiles: function (tiles) {
@@ -932,7 +1094,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
                 return Object.keys(groups).map( function( group ) {
                   return groups[group]; 
                 });
-            };  
+            }
         },
 	_addTiles: function (tiles) { // tiles is an array of arrays, representing tile image URLs grouped by shared row/col
 		var queue = [], group = {};
@@ -969,10 +1131,11 @@ M.MapMLTileLayer = L.TileLayer.extend({
 		var coords = this._getTilePos(tilePoint);
                 coords.z = this._map.getZoom();
                 var key = this._tileCoordsToKey(coords);
+                var tile;
                 
                 for (var i=0;i<groupToLoad.length;i++) {
                     // create an img element for each tile element for this grid cell
-                    var tile = this.createTile(groupToLoad[i].src);
+                    tile = this.createTile(groupToLoad[i].src);
                     this._initTile(tile);
                     setTimeout(L.bind(this._tileReady, this, coords, null, tile), 0);
                     groupToLoad[i].img = tile;
@@ -983,7 +1146,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
                   tileContainer = this._tiles[key].el;
                 } else {
                   tileContainer = document.createElement('div');
-                    for (var i=0;i<groupToLoad.length;i++) {
+                    for (i=0;i<groupToLoad.length;i++) {
                         Polymer.dom(tileContainer).appendChild(groupToLoad[i].img);
                     }
                 }
@@ -1030,7 +1193,7 @@ M.MapMLTileLayer = L.TileLayer.extend({
 		for (i in this._tiles) {
 			tileDiv = this._tiles[i].el;
                         var images = tileDiv.getElementsByTagName('img');
-                        for (var i = 0; i< images.length; i++) {
+                        for (i = 0; i< images.length; i++) {
                             tile = images[i];
                             tile.onload = L.Util.falseFn;
                             tile.onerror = L.Util.falseFn;
@@ -1069,10 +1232,10 @@ M.MapMLFeatures = L.FeatureGroup.extend({
                 var stylesheet = mapml.nodeType === Node.DOCUMENT_NODE ? mapml.querySelector("link[rel=stylesheet]") : null;
                 if (stylesheet) {
                   
-                var baseEl = mapml.querySelector('base'),
-                      base = new URI(baseEl?baseEl.getAttribute('href'):mapml.baseURI),
-                      link = new URI(stylesheet.getAttribute('href')),
-                      stylesheet = link.resolve(base).toString();
+                    var baseEl = mapml.querySelector('base'),
+                          base = new URI(baseEl?baseEl.getAttribute('href'):mapml.baseURI),
+                          link = new URI(stylesheet.getAttribute('href'));
+                          stylesheet = link.resolve(base).toString();
                 }
                 if (stylesheet) {
                   if (!document.head.querySelector("link[href='"+stylesheet+"']")) {
@@ -1145,13 +1308,13 @@ L.extend(M.MapMLFeatures, {
 		var geometry = mapml.tagName.toUpperCase() === 'FEATURE' ? mapml.getElementsByTagName('geometry')[0] : mapml,
 		    coords = geometry.getElementsByTagName('coordinates'),
 		    layers = [],
-		    latlng, latlngs, i, len;
+		    latlng, latlngs, i, coordinates;
 
 		coordsToLatLng = coordsToLatLng || this.coordsToLatLng;
 
 		switch (geometry.firstElementChild.tagName.toUpperCase()) {
 		case 'POINT':
-                        var coordinates = [];
+                        coordinates = [];
                         coords[0].textContent.split(/\s+/gi).forEach(parseNumber,coordinates);
 			latlng = coordsToLatLng(coordinates);
                         
@@ -1176,14 +1339,14 @@ L.extend(M.MapMLFeatures, {
 //			return new L.FeatureGroup(layers);
 
 		case 'LINESTRING':
-                        var coordinates = [];
+                        coordinates = [];
                         coords[0].textContent.match(/(\S+ \S+)/gi).forEach(splitCoordinate, coordinates);
 			latlngs = this.coordsToLatLngs(coordinates, 0, coordsToLatLng);
 			return new L.Polyline(latlngs, vectorOptions);
 
 		case 'POLYGON':
-                        var coordinates = new Array(coords.length);
-                        for (var i=0;i<coords.length;i++) {
+                        coordinates = new Array(coords.length);
+                        for (i=0;i<coords.length;i++) {
                           coordinates[i]=[];
                           coords[i].textContent.match(/(\S+ \S+)/gi).forEach(splitCoordinate, coordinates[i]);
                         }
@@ -1219,11 +1382,11 @@ L.extend(M.MapMLFeatures, {
                   var a = [];
                   element.split(/\s+/gi).forEach(parseNumber,a);
                   this.push(a);
-                };
+                }
 
                 function parseNumber(element, index, array) {
                   this.push(parseFloat(element));
-                };
+                }
         },
         
 
