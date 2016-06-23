@@ -17,8 +17,9 @@
     <div id="osmtile-map" style="height: 300px;width: 40%;"></div>
     <div id="cbmtile-map" style="height: 300px;width: 40%;"></div>
     <div id="apstile-map" style="height: 300px;width: 40%;"></div>
-    <script async>
-      var cbmt =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/cbmt/'),
+    <script>
+        addEventListener('WebComponentsReady', function() {
+          var cbmt =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/cbmt/'),
           cbmtlcc =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/cbmt'),
           toporama =  M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/toporama'),
           osm =         M.mapMLLayer('http://geogratis.gc.ca/mapml/osm/',null,{zIndex:1}),
@@ -55,6 +56,7 @@
                 }),
           apsLayerControl = M.mapMlLayerControl({'Arctic Ocean Base Map - Polar Stereographic':arctic}).addTo(apsMap);
           apsMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
+        });
     </script>
   </body>
 </html>
