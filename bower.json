@@ -1,7 +1,7 @@
 {
   "name": "mapml-leaflet-client",
-  "description": "Internal support library for the web-map-custom-element component",
-  "main": "index.html",
+  "description": "JavaScript support library for the web-map custom element",
+  "main": "mapml.js",
   "authors": [
     "Maps for HTML Community Group"
   ],
@@ -26,7 +26,7 @@
     "tests"
   ],
   "dependencies": { 
-    "mapml-leaflet": "git://github.com/Maps4HTML/Leaflet/#MapML-Leaflet-v1.0.0-beta.1",
+    "mapml-leaflet": "git://github.com/Maps4HTML/Leaflet/#v0.1.0-MapML-Leaflet",
     "polymer": "^1.5.0",
     "proj4Leaflet": "proj4leaflet#1.0.0-beta.2"
   }
