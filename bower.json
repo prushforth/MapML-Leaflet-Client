@@ -1,7 +1,8 @@
 {
-  "name": "mapml-leaflet-client",
+  "name": "mapml-leaflet-plugin",
+  "version": "0.3.0",
   "description": "Internal support library for the web-map-custom-element component",
-  "main": "index.html",
+  "main": "mapml.js",
   "authors": [
     "Maps for HTML Community Group"
   ],
