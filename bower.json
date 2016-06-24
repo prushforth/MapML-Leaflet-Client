@@ -1,5 +1,5 @@
 {
-  "name": "mapml-leaflet-client",
+  "name": "mapml-leaflet-plugin",
   "description": "Internal support library for the web-map-custom-element component",
   "main": "index.html",
   "authors": [
@@ -17,7 +17,7 @@
     "component",
     "polyfill"
   ],
-  "homepage": "https://github.com/Maps4HTML/MapML-Leaflet-Client",
+  "homepage": "https://github.com/Maps4HTML/MapML-Leaflet-Plugin",
   "ignore": [
     "**/.*",
     "node_modules",
@@ -26,7 +26,7 @@
     "tests"
   ],
   "dependencies": { 
-    "mapml-leaflet": "git://github.com/Maps4HTML/Leaflet/#MapML-Leaflet-v1.0.0-beta.1",
+    "polymer-leaflet": "git://github.com/Maps4HTML/Polymer-Leaflet/#0.1.0-Polymer-Leaflet",
     "polymer": "^1.5.0",
     "proj4Leaflet": "proj4leaflet#1.0.0-beta.2"
   }
