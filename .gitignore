@@ -1,4 +1,5 @@
 /node_modules/
 /dist/
+/nbproject/
 /nbproject/private/
 /bower_components/
