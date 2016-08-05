@@ -175,7 +175,7 @@ M.ImageOverlay = L.ImageOverlay.extend({
 			this.addInteractiveTarget(this._image);
 		}
 
-		this._container.appendChild(this._image);
+		Polymer.dom(this._container).appendChild(this._image);
 		this._reset();
 	},
 	onRemove: function () {
