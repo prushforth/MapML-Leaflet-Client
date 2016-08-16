@@ -22,7 +22,7 @@
           var cbmt =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/cbmt/'),
           cbmtlcc =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/cbmt'),
           toporama =  M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/toporama'),
-          osm =         M.mapMLLayer('http://geogratis.gc.ca/mapml/osm/',null,{zIndex:1}),
+          osm =         M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/osm/',null,{zIndex:1}),
           canvec1 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',null,{opacity: 0.2,zIndex:3}),
           canvec2 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',null,{opacity: 0.5,zIndex:3}),
           osmMap =    L.map('osmtile-map',{
@@ -33,7 +33,7 @@
                   layers: [osm],
                   fullscreenControl: true
                 }),
-          osmLayerControl = M.mapMlLayerControl({"Open Street Map":osm, "Canada Base Map - Web Mercator": cbmt, "CanVec+ - WGS84":canvec1}).addTo(osmMap);
+          osmLayerControl = M.mapMlLayerControl({"Open Street Map":osm, "Canada Base Map - Web Mercator": cbmt, "CanVec+ - WGS84":canvec1},{"collapsed":true}).addTo(osmMap);
           osmMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
           var cbmtMap =    L.map('cbmtile-map',{
                   center: [45.398043,-75.70683],
@@ -43,7 +43,7 @@
                   layers: [toporama],
                   fullscreenControl: true
                 }),
-          cbmtLayerControl = M.mapMlLayerControl({'Toporama':toporama, 'Canada Base Map - Lambert Conformal Conic':cbmtlcc, "CanVec+  - WGS84":canvec2}).addTo(cbmtMap);
+          cbmtLayerControl = M.mapMlLayerControl({'Toporama':toporama, 'Canada Base Map - Lambert Conformal Conic':cbmtlcc, "CanVec+  - WGS84":canvec2},{"collapsed":true}).addTo(cbmtMap);
           cbmtMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
           var arctic =        M.mapMLLayer('http://geogratis.gc.ca/mapml/arctic/'), 
                   apsMap =    L.map('apstile-map',{
