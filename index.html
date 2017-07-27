@@ -2,8 +2,9 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>MapML Leaflet client</title>
+    <title>MapML Leaflet plugin</title>
     <link rel="stylesheet" href="bower_components/polymer-leaflet/leaflet.css" />
+    <link rel="stylesheet" href="src/mapml.css" />
     <script src="bower_components/polymer-leaflet/leaflet-src.js"></script>
     <script src="bower_components/proj4Leaflet/lib/proj4-compressed.js"></script> 
     <script src="bower_components/proj4Leaflet/src/proj4leaflet.js"></script>
@@ -13,49 +14,24 @@
     <link rel="import" href="bower_components/polymer/polymer.html">
   </head>
   <body>
-    <h3>MapML Leaflet client</h3>
+    <h3>MapML Leaflet plugin</h3>
     <div id="osmtile-map" style="height: 300px;width: 40%;"></div>
-    <div id="cbmtile-map" style="height: 300px;width: 40%;"></div>
-    <div id="apstile-map" style="height: 300px;width: 40%;"></div>
     <script>
         addEventListener('WebComponentsReady', function() {
-          var cbmt =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/cbmt/'),
-          cbmtlcc =        M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/cbmt'),
-          toporama =  M.mapMLLayer('http://geogratis.gc.ca/mapml/en/cbmtile/toporama'),
-          osm =         M.mapMLLayer('http://geogratis.gc.ca/mapml/en/osmtile/osm/',null,{zIndex:1}),
-          canvec1 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',null,{opacity: 0.2,zIndex:3}),
-          canvec2 =         M.mapMLLayer('http://geogratis.gc.ca/mapml/canvec/50k/features/',null,{opacity: 0.5,zIndex:3}),
-          osmMap =    L.map('osmtile-map',{
+                     cbmt =  M.mapMLLayer('https://geogratis.gc.ca/mapml/en/osmtile/cbmt'),
+          cbmtMap =    L.map('osmtile-map',{
                   center: [45.398043,-75.70683],
-                  projection:'OSMTILE',
+                  projection: 'OSMTILE',
                   crs: M['OSMTILE'],
-                  zoom: 15,
-                  layers: [osm],
-                  fullscreenControl: true
+                  zoom: 14,
+                  layers: [cbmt],
+                  fullscreenControl: true,
+            // See https://github.com/Maps4HTML/MapML-Leaflet-Client/issues/24 
+                  fadeAnimation: true
                 }),
-          osmLayerControl = M.mapMlLayerControl({"Open Street Map":osm, "Canada Base Map - Web Mercator": cbmt, "CanVec+ - WGS84":canvec1},{"collapsed":true}).addTo(osmMap);
-          osmMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
-          var cbmtMap =    L.map('cbmtile-map',{
-                  center: [45.398043,-75.70683],
-                  projection: 'CBMTILE',
-                  crs: M['CBMTILE'],
-                  zoom: 17,
-                  layers: [toporama],
-                  fullscreenControl: true
-                }),
-          cbmtLayerControl = M.mapMlLayerControl({'Toporama':toporama, 'Canada Base Map - Lambert Conformal Conic':cbmtlcc, "CanVec+  - WGS84":canvec2},{"collapsed":true}).addTo(cbmtMap);
+//          cbmtLayerControl = M.mapMlLayerControl({'Canada Base Map':cbmt},{"collapsed":true}).addTo(cbmtMap);
           cbmtMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
-          var arctic =        M.mapMLLayer('http://geogratis.gc.ca/mapml/arctic/'), 
-                  apsMap =    L.map('apstile-map',{
-                  center: [90,0],
-                  projection: 'APSTILE',
-                  crs: M['APSTILE'],
-                  zoom: 3,
-                  layers: [arctic],
-                  fullscreenControl: true
-                }),
-          apsLayerControl = M.mapMlLayerControl({'Arctic Ocean Base Map - Polar Stereographic':arctic}).addTo(apsMap);
-          apsMap.attributionControl.setPrefix('<a href="https://www.w3.org/community/maps4html/" title="W3C Maps4HTML Community Group">MapML</a>');
+//          marker = L.marker([45.398043,-75.70683],{draggable:true}).addTo(cbmtMap);
         });
     </script>
   </body>
