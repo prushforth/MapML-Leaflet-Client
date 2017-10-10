@@ -508,6 +508,7 @@ M.MapMLLayer = L.Layer.extend({
                 }
                 layer._parseLicenseAndLegend(mapml, layer);
                 layer._extent = serverExtent;
+                layer._title = mapml.querySelector('title').textContent;
                 // BUG https://github.com/Maps4HTML/Web-Map-Custom-Element/issues/29
                 //layer._el.appendChild(document.importNode(serverExtent,true));
                 if (layer._map) {
