@@ -15,14 +15,14 @@
   </head>
   <body>
     <h3>MapML Leaflet plugin</h3>
-    <div id="cbmtile-map" style="height: 300px;width: 40%;"></div>
+    <div id="osmtile-map" style="height: 300px;width: 40%;"></div>
     <script>
         addEventListener('WebComponentsReady', function() {
-                     cbmt =  M.mapMLLayer('tile-cache-CBMTILE.mapml'),
-          cbmtMap =    L.map('cbmtile-map',{
+                     cbmt =  M.mapMLLayer('https://geogratis.gc.ca/mapml/en/osmtile/cbmt'),
+          cbmtMap =    L.map('osmtile-map',{
                   center: [45.398043,-75.70683],
-                  projection: 'CBMTILE',
-                  crs: M['CBMTILE'],
+                  projection: 'OSMTILE',
+                  crs: M['OSMTILE'],
                   zoom: 14,
                   layers: [cbmt],
                   fullscreenControl: true,
