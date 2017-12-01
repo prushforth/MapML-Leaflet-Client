@@ -9,9 +9,13 @@
   </head>
   <body>
     <extent units="CBMTILE">
-      <input name="z00m" type="zoom"  min="0" max="17"/>
+      <input name="z00m" type="zoom" value="0" min="0" max="17"/>
       <input name="col" type="location" units="tile" axis="column"/>
       <input name="row" type="location" units="tile" axis="row"/>
+      <input name="xmin" type="xmin" min="768.0" max="1024.0"/>
+      <input name="ymin" type="ymin" min="768.0" max="1280.0"/>
+      <input name="xmax" type="xmax" min="768.0" max="1024.0"/>
+      <input name="ymax" type="ymax" min="768.0" max="1280.0"/>
       <template type="tile" tref="https://geoappext.nrcan.gc.ca/arcgis/rest/services/BaseMaps/CBMT3978/MapServer/tile/{z00m}/{row}/{col}?m4h=t"/>
     </extent>
   </body>

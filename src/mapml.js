@@ -106,30 +106,9 @@ window.M = M;
     ],
     origin: [-2.8567784109255E7, 3.2567784109255E7]
   });
-    M.BCTILE = new L.Proj.CRS('EPSG:3005',
-  '+proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs ',
-  {
-    resolutions: [
-      9783.9400003175,
-      4891.969998835831,
-      2445.9849999470835,
-      1222.9925001058336,
-      611.4962500529168,
-      305.74812489416644,
-      152.8740625,
-      76.4370312632292,
-      38.2185156316146,
-      19.10925781316146,
-      9.554628905257811,
-      4.7773144526289055,
-      2.3886572265790367,
-      1.1943286131572264
-    ],
-    origin: [-1.32393E7, 1.98685E7]
-  });
     M.OSMTILE = L.CRS.EPSG3857;
     L.setOptions(M.OSMTILE,
-      {
+      { 
         origin: [-20037508.342787, 20037508.342787],
         resolutions: [
           156543.0339,
@@ -282,7 +261,9 @@ M.TemplatedTileLayerGroup = L.Layer.extend({
   initialize: function(templates) {
     this._templates =  templates;
     for (var i=0;i<templates.length;i++) {
-      this._templates[i].layer = M.templatedTileLayer(templates[i].template, L.Util.extend(templates[i],{pane:"overlayPane"}));
+      this._templates[i].layer = M.templatedTileLayer(templates[i].template, L.Util.extend(templates[i],
+      // get a better/local url 
+      {pane:"overlayPane", errorTileUrl: "https://geoappext.nrcan.gc.ca/arcgis/rest/services/BaseMaps/CBMT3978/MapServer/tile/0/3/4?m4h=t"}));
     }
   },
   onAdd: function (map) {
@@ -565,13 +546,30 @@ M.MapMLLayer = L.Layer.extend({
                     if (mapml.querySelector('feature,image,tile')) {
                         layer._content = mapml;
                     }
-                } else if (!serverExtent.hasAttribute("action") && serverExtent.querySelector('template')) {
+                } else if (!serverExtent.hasAttribute("action") && serverExtent.querySelector('template') 
+                        && serverExtent.hasAttribute("units") && serverExtent.getAttribute("units") !== "WGS84") {
                   layer._templateVars = [];
                   // set up the URL template and associated variables
                   var tlist = serverExtent.querySelectorAll('template'),
                       rowVar = serverExtent.querySelector('input[type=location][units=tile][axis=row]').getAttribute("name"),
                       colVar = serverExtent.querySelector('input[type=location][units=tile][axis=column]').getAttribute("name"),
                       zoomVar = serverExtent.querySelector('input[type=zoom]').getAttribute("name");
+// not sure what to do with the bounds information; its the map that controls the bounce/limits/repeated copies of tiles              
+//                      xmin = serverExtent.querySelector('input[type=xmin]'),
+//                      xmax = serverExtent.querySelector('input[type=xmax]'),
+//                      ymin = serverExtent.querySelector('input[type=ymin]'),
+//                      ymax = serverExtent.querySelector('input[type=ymax]');
+//                  if (xmin && xmax && ymin && ymax) {
+//                    xmin = parseFloat(xmin.getAttribute("min"));
+//                    xmax = parseFloat(xmax.getAttribute("max"));
+//                    ymin = parseFloat(ymin.getAttribute("min"));
+//                    ymax = parseFloat(ymax.getAttribute("max"));
+//                    var zoom = parseInt(serverExtent.querySelector('input[type=zoom]').getAttribute("value")),
+//                        proj = serverExtent.getAttribute("units"),
+//                        ll = M[proj].pointToLatLng(L.point([xmin,ymax]),zoom),
+//                        ur = M[proj].pointToLatLng(L.point([xmax,ymin]),zoom),
+//                        b = L.latLngBounds(ll, ur);
+//                  }
                   for (var i=0;i< tlist.length;i++) {
                     var t = tlist[i];
                     var tileTemplate = t.getAttribute('tref');
