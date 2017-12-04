@@ -258,32 +258,36 @@ M.imageOverlay = function (url, location, size, angle, container, options) {
 };
 M.TemplatedTileLayerGroup = L.Layer.extend({
   
-  initialize: function(templates) {
+  initialize: function(templates, options) {
     this._templates =  templates;
+    L.setOptions(this, options);
+    this._container = L.DomUtil.create('div', 'mapml-layer');
+
     for (var i=0;i<templates.length;i++) {
       this._templates[i].layer = M.templatedTileLayer(templates[i].template, L.Util.extend(templates[i],
       // get a better/local url 
-      {pane:"overlayPane", errorTileUrl: "https://geoappext.nrcan.gc.ca/arcgis/rest/services/BaseMaps/CBMT3978/MapServer/tile/0/3/4?m4h=t"}));
+      {group: this._container, errorTileUrl: "https://geoappext.nrcan.gc.ca/arcgis/rest/services/BaseMaps/CBMT3978/MapServer/tile/0/3/4?m4h=t"}));
     }
   },
   onAdd: function (map) {
+    Polymer.dom(this.getPane()).appendChild(this._container);
     for (var i=0;i<this._templates.length;i++) {
       map.addLayer(this._templates[i].layer);
     }
   },
   onRemove: function (map) {
+    L.DomUtil.remove(this._container);
     for (var i=0;i<this._templates.length;i++) {
       map.removeLayer(this._templates[i].layer);
     }
   }
-  
 });
-M.templatedTileLayerGroup = function(templates) {
+M.templatedTileLayerGroup = function(templates, options) {
   // templates is an array of template objects
   // a template object contains template,row,col,zoom members, plus optional 
   // members representing template variables + values that are discovered and required by the server
   // e.g. a key value
-  return new M.TemplatedTileLayerGroup(templates);
+  return new M.TemplatedTileLayerGroup(templates, options);
 };
 // a TemplateTileLayer is similar to a L.TileLayer except its templates are
 // defined by the <extent><template></template><template></template></extent>
@@ -292,6 +296,12 @@ M.templatedTileLayerGroup = function(templates) {
 // with tiles for which it generates requests on demand (as the user pans/zooms/resizes
 // the map)
 M.TemplatedTileLayer = L.TileLayer.extend({
+  // instead of being child of a pane, the TemplatedTileLayers are 'owned' by the group,
+  // and so are DOM children of the group, not the pane element (the MapMLLayer is
+  // a child of the overlay pane and always has a set of sub-layers)
+  getPane: function() {
+    return this.options.group;
+  },
   getTileUrl: function (coords) {
       var obj = {};
       obj[this.options.col] = coords.x;
@@ -382,14 +392,14 @@ M.MapMLLayer = L.Layer.extend({
          * info received from mapml server. */
         if (this._extent) {
             if (this._templateVars) {
-              this._templatedLayer = M.templatedTileLayerGroup(this._templateVars);
+              this._templatedLayer = M.templatedTileLayerGroup(this._templateVars, this._tileLayer._container);
               map.addLayer(this._templatedLayer);
             }
             this._onMoveEnd();
         } else {
             this.once('extentload', function() {
                 if (this._templateVars) {
-                  this._templatedLayer = M.templatedTileLayerGroup(this._templateVars);
+                  this._templatedLayer = M.templatedTileLayerGroup(this._templateVars, this._tileLayer._container);
                   map.addLayer(this._templatedLayer);
                 }
               }, this);
