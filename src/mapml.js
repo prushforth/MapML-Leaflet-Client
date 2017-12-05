@@ -261,7 +261,7 @@ M.TemplatedTileLayerGroup = L.Layer.extend({
   initialize: function(templates, options) {
     this._templates =  templates;
     L.setOptions(this, options);
-    this._container = L.DomUtil.create('div', 'mapml-layer');
+    this._container = L.DomUtil.create('div', 'leaflet-layer');
 
     for (var i=0;i<templates.length;i++) {
       this._templates[i].layer = M.templatedTileLayer(templates[i].template, L.Util.extend(templates[i],
@@ -274,6 +274,18 @@ M.TemplatedTileLayerGroup = L.Layer.extend({
     for (var i=0;i<this._templates.length;i++) {
       map.addLayer(this._templates[i].layer);
     }
+    this.setZIndex(this.options.zIndex);
+  },
+  setZIndex: function (zIndex) {
+      this.options.zIndex = zIndex;
+      this._updateZIndex();
+
+      return this;
+  },
+  _updateZIndex: function () {
+      if (this._container && this.options.zIndex !== undefined && this.options.zIndex !== null) {
+          this._container.style.zIndex = this.options.zIndex;
+      }
   },
   onRemove: function (map) {
     L.DomUtil.remove(this._container);
@@ -392,14 +404,14 @@ M.MapMLLayer = L.Layer.extend({
          * info received from mapml server. */
         if (this._extent) {
             if (this._templateVars) {
-              this._templatedLayer = M.templatedTileLayerGroup(this._templateVars, this._tileLayer._container);
+              this._templatedLayer = M.templatedTileLayerGroup(this._templateVars, this.options);
               map.addLayer(this._templatedLayer);
             }
             this._onMoveEnd();
         } else {
             this.once('extentload', function() {
                 if (this._templateVars) {
-                  this._templatedLayer = M.templatedTileLayerGroup(this._templateVars, this._tileLayer._container);
+                  this._templatedLayer = M.templatedTileLayerGroup(this._templateVars, this.options);
                   map.addLayer(this._templatedLayer);
                 }
               }, this);
@@ -487,22 +499,6 @@ M.MapMLLayer = L.Layer.extend({
     },
     getAttribution: function () {
         return this.options.attribution;
-    },
-    // setZIndex and _updateZIndex are copied directly from Leaflet's GridLayer,
-    // as we want to automatically control z-index behaviour for a MapMLLayer,
-    // and need to provide methods where required by Leaflet code i.e. where internal
-    // methods to L.Control.Layers are invoked but not overridden (by M.MapMLLayerControl)
-    // are invoked by Leaflet ancestor methods. Whew.
-    setZIndex: function (zIndex) {
-        this.options.zIndex = zIndex;
-        this._updateZIndex();
-
-        return this;
-    },
-    _updateZIndex: function () {
-        if (this._container && this.options.zIndex !== undefined && this.options.zIndex !== null) {
-            this._container.style.zIndex = this.options.zIndex;
-        }
     },
     _initExtent: function(content) {
         if (!this._href && !content) {return;}
